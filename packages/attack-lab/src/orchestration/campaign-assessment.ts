@@ -775,10 +775,16 @@ function normalizeAssessment(
   const confirmedVulnerabilities: Array<z.infer<typeof AssessmentItemSchema>> = [];
   const downgradedLeads: Array<z.infer<typeof AssessmentItemSchema>> = [];
 
+  const campaignHasLiveConfirmation = (packet.liveConfirmation?.confirmedFindings ?? 0) > 0;
+
   for (const item of sanitizeItems(output.confirmedVulnerabilities)) {
     const hasConfirmedEvidence = item.evidenceRefs.some((ref) => confirmedRefs.has(ref));
-    const hasLiveConfirmation = (packet.liveConfirmation?.confirmedFindings ?? 0) > 0;
-    if (hasConfirmedEvidence || hasLiveConfirmation) {
+    // A campaign-level flag says "something in this campaign was confirmed
+    // live"; it is not evidence for *this* item. It may keep an item that cites
+    // at least one known reference, but it cannot launder a claim that cites
+    // nothing at all.
+    const grounded = item.evidenceRefs.length > 0;
+    if (hasConfirmedEvidence || (campaignHasLiveConfirmation && grounded)) {
       confirmedVulnerabilities.push(item);
       continue;
     }

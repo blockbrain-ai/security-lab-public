@@ -406,3 +406,83 @@ test('toCampaignAssessmentArtifact adds compatibility aliases', () => {
   assert.equal(artifact.summary, assessment.summary);
   assert.equal(artifact.executiveSummary, assessment.summary);
 });
+
+test('a campaign-level live flag cannot promote an ungrounded confirmed claim', async () => {
+  // The flag says "something in this campaign was confirmed live"; it is not
+  // evidence for an item that cites nothing.
+  const packet = {
+    ...createPacket(),
+    liveConfirmation: {
+      enabled: true,
+      status: 'completed',
+      targetId: 'fixture-local',
+      confirmedFindings: 2,
+    },
+  };
+
+  const panel = await runCampaignAssessmentPanel([
+    {
+      label: 'judge-a',
+      adapter: new StaticAdapter(JSON.stringify({
+        overallVerdict: 'confirmed_vulnerabilities_present',
+        summary: 'Two items claimed as confirmed.',
+        confidence: 0.9,
+        confirmedVulnerabilities: [
+          {
+            title: 'Ungrounded claim',
+            severity: 'critical',
+            description: 'No reference backs this claim.',
+            evidenceRefs: [],
+            requiredConditions: [],
+          },
+          {
+            title: 'Grounded claim',
+            severity: 'high',
+            description: 'Cites a known signal.',
+            evidenceRefs: ['ws-1'],
+            requiredConditions: [],
+          },
+        ],
+        validatedRisks: [],
+        configurationRisks: [],
+        unconfirmedLeads: [],
+        suppressedClaims: [],
+        nextActions: [],
+      })),
+    },
+  ], packet);
+
+  const synthesis = await synthesizeCampaignAssessment(new StaticAdapter(JSON.stringify({
+    overallVerdict: 'confirmed_vulnerabilities_present',
+    summary: 'Two items claimed as confirmed.',
+    confidence: 0.9,
+    confirmedVulnerabilities: [
+      {
+        title: 'Ungrounded claim',
+        severity: 'critical',
+        description: 'No reference backs this claim.',
+        evidenceRefs: [],
+        requiredConditions: [],
+      },
+      {
+        title: 'Grounded claim',
+        severity: 'high',
+        description: 'Cites a known signal.',
+        evidenceRefs: ['ws-1'],
+        requiredConditions: [],
+      },
+    ],
+    validatedRisks: [],
+    configurationRisks: [],
+    unconfirmedLeads: [],
+    suppressedClaims: [],
+    nextActions: [],
+  })), packet, panel);
+
+  const confirmedTitles = synthesis.output.confirmedVulnerabilities.map((item) => item.title);
+  assert.deepEqual(confirmedTitles, ['Grounded claim'], 'only the grounded item may stay confirmed');
+  assert.ok(
+    synthesis.output.unconfirmedLeads.some((lead) => lead.title === 'Ungrounded claim'),
+    'the ungrounded claim must be downgraded to a lead',
+  );
+});

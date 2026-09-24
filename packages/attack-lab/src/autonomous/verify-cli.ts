@@ -597,6 +597,17 @@ async function runSourceVerificationPass(opts: {
 // Main
 // ---------------------------------------------------------------------------
 
+// Last-resort diagnostic. Individual evidence writes are awaited or caught at
+// their call sites; this only ensures a rejection that escapes still becomes
+// visible and fails the run instead of disappearing.
+process.on('unhandledRejection', (reason) => {
+  console.error(
+    '[security-lab] unhandled rejection:',
+    reason instanceof Error ? (reason.stack ?? reason.message) : reason,
+  );
+  process.exitCode = 1;
+});
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 

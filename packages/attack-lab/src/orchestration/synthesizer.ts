@@ -39,6 +39,11 @@ export interface SynthesisResult {
   decisiveEvidence: string[];
   /** Classification of the synthesis outcome. */
   outcomeType: 'unanimous_confirmation' | 'contested_confirmation' | 'unresolved_disagreement' | 'unanimous_refutation';
+  /**
+   * Whether the response actually parsed as JSON. A response that fell back to
+   * raw text is reported as such instead of being counted as a success.
+   */
+  parseStatus: 'ok' | 'fallback_text';
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +153,10 @@ export async function synthesize(
     prompt,
     systemPrompt: SYNTHESIZER_SYSTEM_PROMPT,
     response,
-    parseSuccess: output.verdict !== 'insufficient_evidence' || response.content.trim().length > 0,
+    // The old expression was a tautology for any non-empty reply, so a refused
+    // or unparseable response was archived as a success. Report what the parser
+    // actually established.
+    parseSuccess: output.parseStatus === 'ok',
   };
 }
 
@@ -240,6 +248,7 @@ function parseSynthesisResponse(content: string, packet: NormalizedPanelPacket):
         disagreedWith,
         decisiveEvidence: parsed.decisiveEvidence ?? [],
         outcomeType: classifyOutcome(verdict, packet),
+        parseStatus: 'ok',
       };
     } catch {
       // Fall through
@@ -250,6 +259,7 @@ function parseSynthesisResponse(content: string, packet: NormalizedPanelPacket):
     verdict: 'insufficient_evidence',
     reasoning: content,
     confidence: 0.3,
+    parseStatus: 'fallback_text',
     agreedWith: [],
     disagreedWith: [],
     decisiveEvidence: [],

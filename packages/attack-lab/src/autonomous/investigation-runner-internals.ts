@@ -74,6 +74,7 @@ import {
 import { getDefaultProfile, shouldUseCounterPlanner, shouldUseJudgePanel, shouldUseSynthesizer, type PortfolioProfile } from '../orchestration/portfolio-profiles.js';
 import { runJudgePanel, normalizePanelForSynthesis, type PanelMember, type PanelResult } from '../orchestration/judge-panel.js';
 import { synthesize, type SynthesisResult } from '../orchestration/synthesizer.js';
+import { verifyCampaignEvidence } from './evidence-integrity.js';
 import {
   buildDeterministicCampaignAssessment,
   reviewCampaignAssessment,
@@ -3984,6 +3985,9 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
           status: 'complete',
         });
       }
+
+      // --- Evidence integrity: the stream is final, so verify it now. ---
+      await verifyCampaignEvidence(evidenceStore, this.config.campaignDir, campaignId);
 
       // --- Section 1.1: release campaign lock and clear timeout listener ---
       setProviderTimeoutListener(null);

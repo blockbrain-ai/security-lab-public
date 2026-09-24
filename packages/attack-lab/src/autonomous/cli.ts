@@ -115,6 +115,17 @@ interface CliOptions {
   mythosProbes?: number;
 }
 
+// Last-resort diagnostic. Individual evidence writes are awaited or caught at
+// their call sites; this only ensures a rejection that escapes still becomes
+// visible and fails the run instead of disappearing.
+process.on('unhandledRejection', (reason) => {
+  console.error(
+    '[security-lab] unhandled rejection:',
+    reason instanceof Error ? (reason.stack ?? reason.message) : reason,
+  );
+  process.exitCode = 1;
+});
+
 function parseArgs(argv: string[]): CliOptions {
   const args = argv.slice(2);
 
