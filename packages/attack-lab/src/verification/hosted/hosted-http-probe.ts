@@ -1,7 +1,10 @@
 /**
  * Hosted HTTP probe — wraps fetch with auth injection, audit trail
- * recording, auto-stop monitoring, and rate limiting. Every probe
- * is logged before it executes and after it returns.
+ * recording, policy authorization, auto-stop monitoring and rate limiting.
+ *
+ * Everything that produces a live request to a hosted target goes through this
+ * function, so it is also where the policy gate lives: a caller cannot reach
+ * the network without an authorizing decision, whatever lane invoked it.
  */
 
 import type {
@@ -14,6 +17,10 @@ import type { HostedIdentityMatrix } from './hosted-identity-matrix.js';
 import type { AuditTrail } from './audit-trail.js';
 import type { AutoStopMonitor } from './auto-stop.js';
 import { RateLimiter } from '../local-live/rate-limiter.js';
+import { redactBody, redactHeaders } from '../shared/redaction.js';
+import { deriveHostedVerdict } from './hosted-verdict.js';
+import type { SecurityRuntime } from '../../../../security-runtime/src/runtime.js';
+import type { RuntimeTargetContext } from '../../../../security-runtime/src/contracts.js';
 
 // ---------------------------------------------------------------------------
 // Hosted probe options
@@ -29,6 +36,15 @@ export interface HostedProbeOptions {
   autoStop: AutoStopMonitor;
   rateLimiter: RateLimiter;
   fetchFn?: typeof fetch;
+  /**
+   * Policy runtime. When supplied, every hosted request is authorized here
+   * before it is sent, including ingress/pre-flight checks.
+   */
+  runtime?: SecurityRuntime;
+  /** Target context handed to the policy runtime. */
+  runtimeTargetContext?: RuntimeTargetContext;
+  /** Maximum body bytes retained in evidence (default 8000). */
+  maxBodyBytes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +57,30 @@ export async function executeHostedProbe(
 ): Promise<HostedExecutionResult> {
   const fetchFn = options.fetchFn ?? fetch;
   const probeId = `hosted-${probe.findingId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const maxBodyBytes = options.maxBodyBytes ?? 8_000;
+
+  // Policy gate — before anything else, so no caller and no ingress check can
+  // bypass the runtime's environment tiers, timeout caps or kill switch.
+  if (options.runtime) {
+    if (!options.runtimeTargetContext) {
+      // The tier is a safety contract; never guess it.
+      return rejected(
+        probe,
+        probeId,
+        'not_authorized',
+        'hosted probe refused: a policy runtime was supplied without a target context (environment tier unknown)',
+      );
+    }
+    const decision = options.runtime.authorizeProbe('declared', options.runtimeTargetContext, {
+      kind: probe.http.body ? 'prompt_injection' : 'http_request',
+      timeoutMs: 20_000,
+      method: probe.http.method,
+      body: probe.http.body,
+    });
+    if (!decision.allowed) {
+      return rejected(probe, probeId, 'not_authorized', `policy blocked: ${decision.reason ?? 'blocked'}`);
+    }
+  }
 
   // Pre-flight auto-stop check
   const preIncident = options.autoStop.preflight();
@@ -101,7 +141,25 @@ export async function executeHostedProbe(
     ...credentials.headers,
     ...probe.http.headers,
   };
+  // Redacted copies are what reach disk and the returned result.
+  const safeHeaders = redactHeaders(headers);
+  const safeRequestBody = probe.http.body === undefined ? undefined : redactBody(probe.http.body, maxBodyBytes).body;
   const start = Date.now();
+
+  // Record the request before it leaves the process: a crash mid-request must
+  // still leave evidence of what was sent.
+  const startedRef = await options.auditTrail.append({
+    phase: 'request_started',
+    campaignId: options.campaignId,
+    probeId,
+    findingId: probe.findingId,
+    identityId: probe.identityId,
+    at: new Date().toISOString(),
+    request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
+    response: { status: 0, headers: {}, body: '', durationMs: 0 },
+    authorizationToken: options.authorizationToken,
+    notes: 'request_started',
+  });
 
   try {
     const response = await fetchFn(url, {
@@ -119,21 +177,27 @@ export async function executeHostedProbe(
     options.rateLimiter.recordResult(response.status, durationMs);
     const incident = options.autoStop.recordResult(response.status, durationMs, responseHeaders);
 
+    const bodyForEvidence = redactBody(responseBody, maxBodyBytes);
     const auditEntryId = await options.auditTrail.append({
+      phase: 'request_completed',
       campaignId: options.campaignId,
       probeId,
       findingId: probe.findingId,
       identityId: probe.identityId,
       at: new Date().toISOString(),
-      request: { method: probe.http.method, url, headers, body: probe.http.body },
+      request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
       response: {
         status: response.status,
-        headers: responseHeaders,
-        body: responseBody.slice(0, 8_000),
+        headers: redactHeaders(responseHeaders),
+        body: bodyForEvidence.body,
         durationMs,
       },
       authorizationToken: options.authorizationToken,
-      notes: incident ? `auto-stop incident: ${incident.reason}` : undefined,
+      notes: incident
+        ? `auto-stop incident: ${incident.reason}`
+        : bodyForEvidence.truncated
+          ? 'response body truncated in evidence'
+          : undefined,
     });
 
     if (incident) {
@@ -141,11 +205,11 @@ export async function executeHostedProbe(
         probeId,
         findingId: probe.findingId,
         identityId: probe.identityId,
-        request: { method: probe.http.method, url, headers, body: probe.http.body },
+        request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
         response: {
           status: response.status,
-          headers: responseHeaders,
-          body: responseBody.slice(0, 4_000),
+          headers: redactHeaders(responseHeaders),
+          body: bodyForEvidence.body,
           durationMs,
         },
         boundary: probe.boundary,
@@ -156,52 +220,49 @@ export async function executeHostedProbe(
       };
     }
 
-    // Rough verdict heuristic — confirmed if a forbidden boundary was crossed
-    const verdict =
-      probe.boundary && response.status >= 200 && response.status < 300
-        ? 'confirmed'
-        : response.status >= 200 && response.status < 300
-          ? 'inconclusive'
-          : 'refuted';
-
-    return {
-      probeId,
-      findingId: probe.findingId,
-      identityId: probe.identityId,
-      request: { method: probe.http.method, url, headers, body: probe.http.body },
-      response: {
-        status: response.status,
-        headers: responseHeaders,
-        body: responseBody.slice(0, 4_000),
-        durationMs,
-      },
-      boundary: probe.boundary,
-      auditEntryRef: auditEntryId,
-      rollbackExecuted: false,
-      verdict,
-      reasoning: probe.boundary
-        ? `Boundary "${probe.boundary}" → status ${response.status}`
-        : `Status ${response.status}`,
-    };
-  } catch (error) {
-    const durationMs = Date.now() - start;
-    const auditEntryId = await options.auditTrail.append({
-      campaignId: options.campaignId,
-      probeId,
-      findingId: probe.findingId,
-      identityId: probe.identityId,
-      at: new Date().toISOString(),
-      request: { method: probe.http.method, url, headers, body: probe.http.body },
-      response: { status: 0, headers: {}, body: '', durationMs },
-      authorizationToken: options.authorizationToken,
-      notes: `runtime error: ${error instanceof Error ? error.message : String(error)}`,
+    const derived = deriveHostedVerdict(probe, {
+      status: response.status,
+      body: responseBody,
+      contentLength: Number(response.headers.get('content-length') ?? Number.NaN),
     });
 
     return {
       probeId,
       findingId: probe.findingId,
       identityId: probe.identityId,
-      request: { method: probe.http.method, url, headers, body: probe.http.body },
+      request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
+      response: {
+        status: response.status,
+        headers: redactHeaders(responseHeaders),
+        body: bodyForEvidence.body,
+        durationMs,
+      },
+      boundary: probe.boundary,
+      auditEntryRef: auditEntryId,
+      rollbackExecuted: false,
+      verdict: derived.verdict,
+      reasoning: derived.reasoning,
+    };
+  } catch (error) {
+    const durationMs = Date.now() - start;
+    const auditEntryId = await options.auditTrail.append({
+      phase: 'request_completed',
+      campaignId: options.campaignId,
+      probeId,
+      findingId: probe.findingId,
+      identityId: probe.identityId,
+      at: new Date().toISOString(),
+      request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
+      response: { status: 0, headers: {}, body: '', durationMs },
+      authorizationToken: options.authorizationToken,
+      notes: `runtime error after request ${startedRef}: ${error instanceof Error ? error.message : String(error)}`,
+    });
+
+    return {
+      probeId,
+      findingId: probe.findingId,
+      identityId: probe.identityId,
+      request: { method: probe.http.method, url, headers: safeHeaders, body: safeRequestBody },
       response: { status: 0, headers: {}, body: '', durationMs },
       boundary: probe.boundary,
       auditEntryRef: auditEntryId,

@@ -2265,6 +2265,7 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
           hypothesis: check.description,
           identityId: identityMatrix.get('guest') ? 'guest' : (hostedMeta.hostedIdentities[0]?.id ?? 'guest'),
           http: { method: check.method, path: check.path },
+          expect: { statusIn: check.expectStatusIn },
         },
         {
           campaignId: args.memory.campaignId,
@@ -2275,6 +2276,14 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
           auditTrail,
           autoStop,
           rateLimiter,
+          // Ingress checks are live requests too: they pass the same policy gate.
+          runtime: this.runtime,
+          runtimeTargetContext: {
+            id: hostedMeta.id,
+            kind: 'http',
+            environment: hostedTarget.environment,
+            baseUrl: hostedMeta.baseUrl,
+          },
         },
       );
       await args.evidenceStore.appendEvent('verification_hosted_preflight', {
@@ -2326,6 +2335,15 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
         auditTrail,
         autoStop,
         rateLimiter,
+        // The gate also lives inside executeHostedProbe; this keeps the two in
+        // step if a future caller forgets to pass it.
+        runtime: this.runtime,
+        runtimeTargetContext: {
+          id: hostedMeta.id,
+          kind: 'http',
+          environment: hostedTarget.environment,
+          baseUrl: hostedMeta.baseUrl,
+        },
       });
       summary.attempted += 1;
       countLaneVerdict(summary, result.verdict);

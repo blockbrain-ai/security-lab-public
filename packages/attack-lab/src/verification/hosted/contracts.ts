@@ -52,6 +52,21 @@ export interface HostedProbeRequest {
   boundary?: string;
   /** Whether this probe is allowed to mutate hosted state. */
   mutationAllowed?: boolean;
+  /**
+   * What "exploited" looks like for this probe. A 2xx response is not by
+   * itself evidence (catch-all routes, SPA shells and empty collections all
+   * answer 2xx), so a probe without an assertion can only be `inconclusive`.
+   */
+  expect?: {
+    /** Status codes that count as confirmation (default: any 2xx). */
+    statusIn?: number[];
+    /** Marker that must appear in the body. */
+    bodyContains?: string;
+    /** Marker that must NOT appear in the body (identity differentials). */
+    bodyNotContains?: string;
+    /** Minimum body size in bytes (e.g. a dump larger than an empty list). */
+    minBodyBytes?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +102,12 @@ export interface HostedExecutionResult {
 
 export interface AuditEntry {
   entryId: string;
+  /**
+   * `request_started` is appended before the request leaves the process and
+   * `request_completed` after the response is read, so a crash mid-request
+   * still leaves a record of what was sent.
+   */
+  phase?: 'request_started' | 'request_completed';
   campaignId: string;
   probeId: string;
   findingId: string;
