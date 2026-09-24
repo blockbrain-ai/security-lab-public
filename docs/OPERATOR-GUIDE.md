@@ -3,6 +3,8 @@
 > **Audience**: operators running Security Lab as a standalone project.
 > **Scope**: installation, bootstrap, doctor, mode selection, campaign lifecycle, artifacts, resume, and repair.
 > Security Lab is a standalone security investigation tool. It is not a submodule of any target project.
+>
+> **Authorised use only.** Point it at systems you own or have explicit written authorisation to test, within the scope that authorisation covers. See [Authorised use only](../README.md#authorised-use-only).
 
 ---
 

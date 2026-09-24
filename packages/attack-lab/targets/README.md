@@ -15,4 +15,6 @@ Two conventions worth knowing up front:
 - **Environment tier controls what is allowed.** `fixture` and `sandbox` are permissive; `staging`, `hosted_authorized` and `production_shadow` progressively restrict methods, bodies and shell-adjacent probes. Declare the real tier — it is the safety contract, not a label.
 - **Never hardcode credentials in a profile.** Reference environment variables (`tokenEnv`, `cookieValueEnv`, `repoRootEnv`) so the profile can be shared.
 
+> **Authorised use only.** A profile is a statement of intent about a system: declare only targets you own or have explicit written authorisation to test, at the environment tier that matches reality. Mis-declaring the tier is how a run escapes its scope. See [Authorised use only](../../README.md#authorised-use-only).
+>
 > Profiles are trusted input: they can declare commands that run on your machine (lifecycle hooks, sidecars). Only use profiles you have reviewed.

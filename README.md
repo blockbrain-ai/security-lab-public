@@ -10,7 +10,21 @@ It is deliberately split into three packages so that no single component is atta
 | `@security-lab/evidence-plane` | Append-only event store with chained hashes, run manifests and report rendering |
 | `@security-lab/security-runtime` | Probe authorization gates, kill switch, environment tiers and destructive-command filtering |
 
-> **Only point this at systems you own or are explicitly authorised to test.** See [SECURITY.md](SECURITY.md).
+## Authorised use only
+
+**Security Lab is for testing systems you own or have explicit written permission to test — nothing else.**
+
+- **Get authorisation in writing first,** and make sure it covers the specific targets, time window, techniques and environments you intend to use. An authorisation that does not mention active probing, credential testing or mutation is not permission to do those things.
+- **Own it, or be authorised for it.** "It is publicly reachable", "it is open source", "it is only staging" and "I was curious" are not authorisation.
+- **Do not point this at third-party or shared infrastructure** — production systems you do not control, SaaS tenants, cloud metadata endpoints, or anything where you cannot say who authorised you and when.
+- **Stay inside the agreed scope while it runs.** Target profiles, identity ladders, rate limits, mutation flags and the hosted tier exist to keep a run inside what was agreed; do not widen them mid-campaign.
+- **Unauthorised access is a criminal offence in most jurisdictions** — for example the Computer Fraud and Abuse Act in the United States, the Computer Misuse Act in the United Kingdom, and equivalent legislation elsewhere — and can also create civil liability. "The tool did it" is not a defence.
+- **You are responsible for what you configure and run:** the targets, the credentials you supply, the lanes you enable and the probes you authorise.
+- **The maintainers do not condone or support unauthorised use** and accept no liability for it.
+
+This notice describes acceptable use of the project. It does not modify, restrict or add conditions to the rights granted under the [Apache-2.0 licence](LICENSE), and it grants no permission to access any system.
+
+If you are not certain you have authorisation, stop and get it in writing before you run anything.
 
 ## Safety defaults
 

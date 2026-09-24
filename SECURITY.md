@@ -1,22 +1,16 @@
 # Security Policy
 
-## Scope
+## Authorised use
 
-This policy covers vulnerabilities in Security Lab itself — the code in this
-repository (attack-lab, evidence-plane, security-runtime), not the systems it is
-pointed at.
+Security Lab is an autonomous security-testing tool. **Use it only against systems you own or have explicit written authorisation to test**, and only within the scope, time window and techniques that authorisation covers. You are responsible for staying inside it. Unauthorised probing is a criminal offence in most jurisdictions and can create civil liability.
 
-Security Lab is an autonomous security-testing tool. Use it only against systems
-you own or have explicit written authorisation to test. You are responsible for
-staying inside that authorisation.
+The full notice is in [README.md § Authorised use only](README.md#authorised-use-only). It describes acceptable use; it does not modify the rights granted under the Apache-2.0 licence.
 
 ## Reporting a Vulnerability
 
 Please do not open a public issue for a security vulnerability.
 
-Report privately through GitHub's private vulnerability reporting on this
-repository (Security tab → "Report a vulnerability"), or by email to the
-maintainer at `qualitycontrol@localhost`.
+Report privately through GitHub's private vulnerability reporting on this repository (Security tab → "Report a vulnerability"). If you cannot use that channel, open an issue asking for a private contact address and do not include the details.
 
 Include, where you can:
 

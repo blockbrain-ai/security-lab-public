@@ -261,6 +261,10 @@ function getOptionalNumberArg(args: string[], flag: string): number | undefined 
 function printHelp(): void {
   console.log(`Usage: npm run investigate -- [options]
 
+Use Security Lab only against systems you own or have explicit written
+authorisation to test, and only within the scope that authorisation covers.
+See README.md (Authorised use only) for the full notice.
+
 Options:
   --target <path>           Target repository path or YAML target profile (default: .)
   --target-id <id>          Target identifier (default: default)
