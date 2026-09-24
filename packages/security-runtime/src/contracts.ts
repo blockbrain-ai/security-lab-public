@@ -18,6 +18,20 @@ export interface RuntimeTargetContext {
   baseUrl?: string;
   cwd?: string;
   repoRoot?: string;
+  /**
+   * Executable basenames this target permits for shell/process/persistence
+   * probes (e.g. ['ps', 'docker']). Missing or empty means the target permits
+   * no shell execution at all — the gate fails closed rather than relying on a
+   * denylist of dangerous command fragments.
+   */
+  allowedShellCommands?: string[];
+  /**
+   * Explicit acknowledgement that the allow-list contains an interpreter or
+   * indirection binary (sh, bash, python, env, xargs, …). Allowing one of
+   * those is equivalent to allowing arbitrary code execution, so it takes a
+   * second, deliberate opt-in.
+   */
+  allowShellInterpreters?: boolean;
 }
 
 export interface RuntimeProbeContext {

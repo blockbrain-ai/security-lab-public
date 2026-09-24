@@ -12,8 +12,12 @@ export async function runShellProbe(
   return new Promise<ProbeObservation>((resolvePromise, reject) => {
     const child = spawn(probe.command[0]!, probe.command.slice(1), {
       cwd: resolveShellCwd(probe.cwd ?? target.cwd),
+      // Deliberately NOT `...process.env`: a probe runs a command derived from
+      // model output, so inheriting the operator's environment would hand it
+      // API keys, cloud credentials and an SSH agent. Only PATH is carried
+      // over; everything else must be declared by the target or the probe.
       env: {
-        ...process.env,
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
         ...(target.env ?? {}),
         ...(probe.env ?? {}),
       },

@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import type { ModelAdapter, ModelConfig, ModelResponse, InvokeOptions, BoundedLocalConfig } from './contracts.js';
 import { tryParseStructured } from './parse-structured.js';
 import { WORKER_CONTRACT } from './worker-contract.js';
+import { isWithinRootReal, realpathOrResolved } from '../verification/shared/path-containment.js';
 
 const DEFAULT_MAX_TURNS = 15;
 const DEFAULT_READ_BUDGET = 15;
@@ -514,12 +515,18 @@ export class BoundedLocalAdapter implements ModelAdapter {
   }
 
   private resolveSandboxed(inputPath: string, workDir: string): string {
+    // Symlink-aware containment: compare real paths so a link inside the
+    // sandbox cannot point outside it, and return the real path so the read
+    // and the check agree.
     const resolved = resolve(workDir, inputPath);
-    const allowed = this.allowedDirs.some((dir) => resolved.startsWith(dir + '/') || resolved === dir);
+    const realResolved = realpathOrResolved(resolved);
+    const allowed = this.allowedDirs.some(
+      (dir) => isWithinRootReal(realResolved, dir) || resolved === dir,
+    );
     if (!allowed) {
       throw new Error(`Path outside sandbox: ${inputPath}`);
     }
-    return resolved;
+    return realResolved;
   }
 
   private async executeReadFile(

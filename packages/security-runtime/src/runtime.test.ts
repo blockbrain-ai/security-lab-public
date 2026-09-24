@@ -37,12 +37,20 @@ test('SecurityRuntime enforces staging restrictions', () => {
   assert.equal(allowedGet.allowed, true);
 });
 
-test('SecurityRuntime blocks destructive shell fragments in sandbox mode', () => {
+test('SecurityRuntime blocks destructive shell fragments even when the binary is allowed', () => {
   const runtime = new SecurityRuntime({ repoRoot: process.cwd() });
 
+  // The fragment list is defence in depth now; the binary still has to be
+  // allowed, and an interpreter still needs allowShellInterpreters.
   const decision = runtime.authorizeProbe(
     'declared',
-    { id: 'sandbox-shell', kind: 'shell', environment: 'sandbox' },
+    {
+      id: 'sandbox-shell',
+      kind: 'shell',
+      environment: 'sandbox',
+      allowedShellCommands: ['bash'],
+      allowShellInterpreters: true,
+    },
     { kind: 'shell_command', timeoutMs: 1000, command: ['bash', '-lc', 'rm -rf /tmp/fixture'] },
   );
 
@@ -50,7 +58,20 @@ test('SecurityRuntime blocks destructive shell fragments in sandbox mode', () =>
   assert.match(decision.reason ?? '', /blocked fragment/i);
 });
 
-test('SecurityRuntime allows benign shell-adjacent probes in sandbox with default policy', () => {
+test('SecurityRuntime allows shell probes for a binary the target permits', () => {
+  const runtime = new SecurityRuntime();
+
+  const decision = runtime.authorizeProbe(
+    'declared',
+    { id: 'sandbox-process', kind: 'shell', environment: 'sandbox', allowedShellCommands: ['ps'] },
+    { kind: 'process_check', timeoutMs: 1000, command: ['ps', 'aux'] },
+  );
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.observedSafetyState, 'allowed');
+});
+
+test('SecurityRuntime refuses shell probes when the target declares no allow-list', () => {
   const runtime = new SecurityRuntime();
 
   const decision = runtime.authorizeProbe(
@@ -59,8 +80,58 @@ test('SecurityRuntime allows benign shell-adjacent probes in sandbox with defaul
     { kind: 'process_check', timeoutMs: 1000, command: ['ps', 'aux'] },
   );
 
+  assert.equal(decision.allowed, false);
+  assert.match(decision.reason ?? '', /allowedShellCommands/);
+});
+
+test('SecurityRuntime refuses a binary that is not on the allow-list', () => {
+  const runtime = new SecurityRuntime();
+
+  const decision = runtime.authorizeProbe(
+    'declared',
+    { id: 'sandbox-shell', kind: 'shell', environment: 'sandbox', allowedShellCommands: ['ps', 'docker'] },
+    { kind: 'shell_command', timeoutMs: 1000, command: ['curl', 'http://example.test'] },
+  );
+
+  assert.equal(decision.allowed, false);
+  assert.match(decision.reason ?? '', /not in the allowedShellCommands/);
+});
+
+test('SecurityRuntime requires an explicit acknowledgement for interpreters', () => {
+  const runtime = new SecurityRuntime();
+  const target = {
+    id: 'sandbox-shell',
+    kind: 'shell' as const,
+    environment: 'sandbox' as const,
+    allowedShellCommands: ['sh'],
+  };
+
+  const refused = runtime.authorizeProbe('declared', target, {
+    kind: 'shell_command',
+    timeoutMs: 1000,
+    command: ['sh', 'script.sh', 'health'],
+  });
+  assert.equal(refused.allowed, false);
+  assert.match(refused.reason ?? '', /interpreter or indirection/);
+
+  const permitted = runtime.authorizeProbe(
+    'declared',
+    { ...target, allowShellInterpreters: true },
+    { kind: 'shell_command', timeoutMs: 1000, command: ['sh', 'script.sh', 'health'] },
+  );
+  assert.equal(permitted.allowed, true);
+});
+
+test('SecurityRuntime matches the allow-list by basename, not path', () => {
+  const runtime = new SecurityRuntime();
+
+  const decision = runtime.authorizeProbe(
+    'declared',
+    { id: 'sandbox-process', kind: 'shell', environment: 'sandbox', allowedShellCommands: ['ps'] },
+    { kind: 'process_check', timeoutMs: 1000, command: ['/bin/ps', 'aux'] },
+  );
+
   assert.equal(decision.allowed, true);
-  assert.equal(decision.observedSafetyState, 'allowed');
 });
 
 test('SecurityRuntime applies production-shadow restrictions to HTTP and code-adjacent probes', () => {

@@ -154,6 +154,8 @@ export function buildRuntimeTargetContext(target: InvestigationTarget): RuntimeT
     baseUrl: target.baseUrl,
     cwd: target.cwd,
     repoRoot: target.repoRoot,
+    allowedShellCommands: target.allowedShellCommands,
+    allowShellInterpreters: target.allowShellInterpreters,
   };
 }
 

@@ -25,6 +25,25 @@ const DEFAULT_POLICY: RuntimePolicy = {
   blockedShellEnvironments: ['staging', 'hosted_authorized', 'production_shadow'],
 };
 
+/**
+ * Binaries that can execute arbitrary code or indirect into another command.
+ * Permitting one is equivalent to permitting arbitrary execution, so it needs
+ * the target's explicit `allowShellInterpreters: true` acknowledgement.
+ */
+const INTERPRETER_BINARIES: ReadonlySet<string> = new Set([
+  'sh', 'bash', 'zsh', 'dash', 'ksh', 'csh', 'tcsh', 'fish',
+  'python', 'python2', 'python3', 'perl', 'ruby', 'node', 'deno', 'bun',
+  'php', 'lua', 'awk', 'gawk', 'mawk', 'nawk',
+  'env', 'xargs', 'find', 'sudo', 'doas', 'ssh', 'nohup', 'setsid', 'time',
+  'make', 'parallel', 'eval', 'exec', 'source',
+]);
+
+/** Executable basename, so `/bin/sh` and `sh` are the same decision. */
+function binaryBasename(command: string): string {
+  const parts = command.split('/');
+  return (parts[parts.length - 1] ?? command).toLowerCase();
+}
+
 /** Every probe kind the policy understands. */
 const KNOWN_PROBE_KINDS: ReadonlySet<string> = new Set([
   'http_request',
@@ -81,12 +100,41 @@ export class SecurityRuntime {
       }
 
       const command = probe.command ?? [];
-      // Executable probe kinds must declare what they run, otherwise the
-      // fragment filter below inspects an empty string and always passes.
+      // Executable probe kinds must declare what they run, otherwise a filter
+      // over the command string inspects nothing and always passes.
       if (command.length === 0) {
         return blocked(mode, `${probe.kind} probe did not declare a command`);
       }
 
+      // Allow-list, not denylist: the target declares which binaries it
+      // permits. No declaration means no shell execution.
+      const allowed = target.allowedShellCommands ?? [];
+      if (allowed.length === 0) {
+        return blocked(
+          mode,
+          `Target ${target.id} declares no allowedShellCommands, so ${probe.kind} probes are disabled. ` +
+            'Declare the binaries this target permits (and allowShellInterpreters: true if one of them is an interpreter).',
+        );
+      }
+
+      const binary = binaryBasename(command[0]!);
+      const normalisedAllowed = allowed.map((entry) => binaryBasename(entry));
+      if (!normalisedAllowed.includes(binary)) {
+        return blocked(
+          mode,
+          `Binary "${binary}" is not in the allowedShellCommands for target ${target.id} (${normalisedAllowed.join(', ') || 'none'})`,
+        );
+      }
+
+      if (INTERPRETER_BINARIES.has(binary) && target.allowShellInterpreters !== true) {
+        return blocked(
+          mode,
+          `Binary "${binary}" is an interpreter or indirection; permitting it allows arbitrary code execution. ` +
+            'Set allowShellInterpreters: true on the target if that is intended.',
+        );
+      }
+
+      // Defence in depth: the historical fragment denylist still applies.
       const joined = command.join(' ').toLowerCase();
       const blockedFragment = this.policy.destructiveCommandFragments.find((fragment) =>
         joined.includes(fragment),

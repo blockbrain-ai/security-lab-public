@@ -40,6 +40,14 @@ const ShellTargetSchema = z.object({
   environment: EnvironmentTierSchema,
   cwd: z.string().optional(),
   env: z.record(z.string()).optional(),
+  /**
+   * Executable basenames this target permits. Required for shell targets: the
+   * runtime refuses shell probes for a target that declares no allow-list
+   * rather than relying on a denylist of dangerous fragments.
+   */
+  allowedShellCommands: z.array(z.string().min(1)).optional(),
+  /** Acknowledge that the allow-list contains an interpreter (sh, python, …). */
+  allowShellInterpreters: z.boolean().optional(),
 });
 
 export const SecurityLabTargetSchema = z.discriminatedUnion('kind', [

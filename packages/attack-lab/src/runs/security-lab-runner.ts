@@ -187,6 +187,8 @@ function toRuntimeTarget(target: SecurityLabTarget) {
         kind: target.kind,
         environment: target.environment,
         cwd: target.cwd,
+        allowedShellCommands: target.allowedShellCommands,
+        allowShellInterpreters: target.allowShellInterpreters,
       };
 }
 

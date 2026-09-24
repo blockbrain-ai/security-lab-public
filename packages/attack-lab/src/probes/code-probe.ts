@@ -6,6 +6,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, relative, join, isAbsolute } from 'node:path';
 import type { ProbeObservation } from '../../../evidence-plane/src/contracts.js';
+import { isWithinRootReal } from '../verification/shared/path-containment.js';
 
 // ---------------------------------------------------------------------------
 // Generated / build artifact directories to exclude
@@ -78,10 +79,9 @@ function hasPathTraversal(relativePath: string): boolean {
 }
 
 function isWithinRoot(absolutePath: string, root: string): boolean {
-  const normalizedRoot = resolve(root);
-  const normalizedPath = resolve(absolutePath);
-  const rel = relative(normalizedRoot, normalizedPath);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+  // Symlink-aware: a scanned repo can contain `docs/keys -> ~/.ssh`, which a
+  // purely lexical check would happily read through.
+  return isWithinRootReal(absolutePath, root);
 }
 
 // ---------------------------------------------------------------------------

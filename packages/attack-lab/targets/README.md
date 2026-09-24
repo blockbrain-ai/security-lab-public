@@ -17,4 +17,6 @@ Two conventions worth knowing up front:
 
 > **Authorised use only.** A profile is a statement of intent about a system: declare only targets you own or have explicit written authorisation to test, at the environment tier that matches reality. Mis-declaring the tier is how a run escapes its scope. See [Authorised use only](../../README.md#authorised-use-only).
 >
+- **Shell-executing targets declare an allow-list.** For `kind: shell` (and any target whose probes run commands), `allowedShellCommands` lists the permitted binaries and `allowShellInterpreters: true` acknowledges an interpreter on that list. Without an allow-list, shell probes are refused.
+
 > Profiles are trusted input: they can declare commands that run on your machine (lifecycle hooks, sidecars). Only use profiles you have reviewed.

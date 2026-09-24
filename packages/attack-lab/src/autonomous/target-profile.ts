@@ -142,6 +142,13 @@ const TargetProfileBaseSchema = z
     localStartup: z.record(z.unknown()).optional(),
     localShutdown: z.record(z.unknown()).optional(),
     authBootstrap: z.record(z.unknown()).optional(),
+    /**
+     * Executable basenames this target permits for shell/process/persistence
+     * probes. Omitted means the target permits no shell execution.
+     */
+    allowedShellCommands: z.array(z.string().min(1)).optional(),
+    /** Acknowledge that the allow-list contains an interpreter (sh, python, …). */
+    allowShellInterpreters: z.boolean().optional(),
     processDecoys: z.record(z.unknown()).optional(),
     persistenceCanaries: z.record(z.unknown()).optional(),
     authentication: z.record(z.unknown()).optional(),
@@ -333,6 +340,8 @@ export interface InvestigationTarget {
   localStartup?: Record<string, unknown>;
   localShutdown?: Record<string, unknown>;
   authBootstrap?: Record<string, unknown>;
+  allowedShellCommands?: string[];
+  allowShellInterpreters?: boolean;
   processDecoys?: Record<string, unknown>;
   persistenceCanaries?: Record<string, unknown>;
   authentication?: Record<string, unknown>;
@@ -427,6 +436,8 @@ export async function loadTargetProfile(
     localStartup: parsed.localStartup,
     localShutdown: parsed.localShutdown,
     authBootstrap: parsed.authBootstrap,
+    allowedShellCommands: parsed.allowedShellCommands,
+    allowShellInterpreters: parsed.allowShellInterpreters,
     processDecoys: parsed.processDecoys,
     persistenceCanaries: parsed.persistenceCanaries,
     authentication: parsed.authentication,

@@ -72,6 +72,29 @@ These fields let you customise scanning behavior. None are required for a first 
 | `maxRoutes` | Cap the number of routes extracted (default: unlimited) |
 | `maxFiles` | Cap the number of files scanned (default: unlimited) |
 
+### Shell execution (allow-list)
+
+Shell, process and persistence probes run commands on the machine executing the
+campaign, so a target must declare exactly which binaries it permits. There is
+no default: a target with no allow-list gets no shell execution.
+
+```yaml
+kind: shell
+allowedShellCommands:
+  - ps
+  - docker
+# Only if one of the allowed binaries is an interpreter (sh, bash, python,
+# node, env, xargs, …) — permitting one of those is equivalent to permitting
+# arbitrary code execution, so it takes a second, explicit acknowledgement.
+allowShellInterpreters: true
+```
+
+The runtime refuses a binary that is not on the list, refuses an interpreter
+without `allowShellInterpreters: true`, refuses a probe that declares no
+command, and still applies its destructive-fragment filter on top. Probes do
+not inherit the operator's environment: only `PATH` plus whatever the target or
+the probe declares is passed to the child process.
+
 ### Overlay
 
 An overlay adds programme-specific knowledge the scanner can't discover on its own. It can be an inline object or a path to a separate YAML file:

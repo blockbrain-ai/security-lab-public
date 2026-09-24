@@ -16,6 +16,11 @@ targets:
     kind: shell
     environment: fixture
     cwd: .
+    # This fixture runs a seeded shell script through `sh`, which is an
+    # interpreter (arbitrary code execution), so it takes both declarations.
+    allowedShellCommands:
+      - sh
+    allowShellInterpreters: true
 scenarios:
   - id: fx-shell-001
     title: Shell fixture health remains reachable
