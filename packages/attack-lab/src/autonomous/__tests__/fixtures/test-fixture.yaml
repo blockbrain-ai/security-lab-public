@@ -1,0 +1,25 @@
+id: test-fixture
+name: Fixture Target for Campaign Diff Harness
+description: >
+  Deterministic fixture target used by fixture-campaign-diff.test.ts
+  to gate body-move refactors. The repoRoot is set at runtime by the
+  test to a temp directory created by createFixtureRepo().
+
+kind: code
+environment: fixture
+
+# repoRoot is injected at runtime — the test overrides this via targetRef
+repoRoot: .
+
+includePaths:
+  - src/
+excludePaths:
+  - node_modules
+maxRoutes: 10
+maxFiles: 50
+
+hints:
+  stack: node-express
+  framework: Express
+  apiPrefix: /api
+  healthEndpoint: /health

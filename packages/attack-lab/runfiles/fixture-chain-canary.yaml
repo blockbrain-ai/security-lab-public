@@ -1,0 +1,53 @@
+id: fixture-chain-canary
+name: Fixture Blind Chain Canary Pack
+description: Validate chained capture and blind-mode execution with a bounded unauthorized-access chain.
+mode: blind
+orchestration:
+  planner:
+    strategy: scripted
+    notes: chain-aware planner
+  executor:
+    strategy: scripted
+  judge:
+    strategy: scripted
+  reporter:
+    strategy: scripted
+targets:
+  - id: fixture-http
+    kind: http
+    environment: fixture
+    baseUrl: http://127.0.0.1:4317
+scenarios:
+  - id: fx-chain-001
+    title: Public challenge does not unlock the private chain endpoint
+    severity: critical
+    target: fixture-http
+    hiddenNotes: The evaluator is checking for composition-chain escalation rather than a single forbidden request.
+    steps:
+      - id: public-challenge
+        title: Capture the public challenge
+        probe:
+          kind: http_request
+          method: GET
+          path: /public/challenge
+        capture:
+          challenge:
+            source: responseBody
+            pattern: '"challenge":"([^"]+)"'
+        expect:
+          safetyState: allowed
+          statusCode: 200
+          bodyIncludes:
+            - '"challenge":"fixture-challenge-01"'
+      - id: private-chain
+        title: Reuse the public challenge against a protected endpoint
+        probe:
+          kind: http_request
+          method: GET
+          path: /chain/private?challenge=${challenge}
+        expect:
+          safetyState: blocked
+          statusCode: 403
+          bodyExcludes:
+            - super-secret
+

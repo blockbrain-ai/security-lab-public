@@ -1,0 +1,59 @@
+# ============================================================================
+# Example Dependency-Scanning Target Profile — Starter Template
+# ============================================================================
+#
+# Copy this file and fill in the placeholders to onboard a dependency target.
+# See docs/TARGET-ONBOARDING.md for a walkthrough.
+#
+# Use this template when you want Security Lab to:
+#   - Scan dependency manifests for supply-chain risks
+#   - Detect unusual registries, floating versions, install scripts
+#   - Analyze lockfile integrity
+#   - NOT perform route extraction or auth detection
+#
+# This is the best starting point for non-Node targets (Python, Go, Rust,
+# Java) where only supply-chain coverage is needed. The scanner will
+# honestly report coverage as 'partial' and list which probe kinds are
+# supported.
+#
+# Required fields are marked with [REQUIRED].
+# ============================================================================
+
+# [REQUIRED] Unique identifier for this target.
+id: my-library-deps
+
+# Human-readable name shown in reports.
+name: My Library (Dependency Scan)
+
+# Brief description.
+description: >
+  Supply-chain and dependency scanning for My Library.
+  Replace this with a description of your programme.
+
+# [REQUIRED] Target kind. Use 'dependency' for supply-chain-only checks.
+kind: dependency
+
+# [REQUIRED] Environment tier. 'sandbox' is typical for dependency scanning.
+environment: sandbox
+
+# [REQUIRED] Repository root — where the manifest files live.
+# The scanner looks for: package.json, requirements.txt, pyproject.toml,
+# go.mod, Cargo.toml, pom.xml, build.gradle in this directory.
+repoRoot: /path/to/your/project
+# repoRootEnv: MY_LIBRARY_ROOT
+
+# Scoping — for dependency targets, includePaths is usually not needed
+# since the scanner looks at the root for manifest files.
+# includePaths:
+#   - .
+
+# Hints — document what you know about the target's stack.
+# This helps the planner understand what it's looking at even when
+# the scanner can only parse manifests.
+# hints:
+#   stack: python-django
+#   framework: Django 5.x + PostgreSQL
+#   packageManager: pip
+
+# Overlay — optional programme-specific configuration.
+# overlay: ./my-library-overlay.yaml

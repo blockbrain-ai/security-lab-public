@@ -1,0 +1,76 @@
+# ============================================================================
+# Example Code-Only Target Profile — Starter Template
+# ============================================================================
+#
+# Copy this file and fill in the placeholders to onboard a code-only target.
+# See docs/TARGET-ONBOARDING.md for a walkthrough.
+#
+# Use this template when you want Security Lab to:
+#   - Scan source code for vulnerabilities (static analysis)
+#   - Extract routes, auth surfaces, and config
+#   - Perform dependency scanning
+#   - Run test synthesis (generate security tests)
+#   - NOT interact with any running instance
+#
+# This is ideal for CI pipelines, code reviews, or when the app
+# isn't running locally. Works for any language — see the onboarding
+# guide for non-Node stack notes.
+#
+# Required fields are marked with [REQUIRED].
+# ============================================================================
+
+# [REQUIRED] Unique identifier for this target.
+id: my-project-static
+
+# Human-readable name shown in reports.
+name: My Project (Static Analysis)
+
+# Brief description.
+description: >
+  Static code analysis of My Project.
+  Replace this with a description of your programme.
+
+# [REQUIRED] Target kind. Use 'code' for static-only scanning.
+kind: code
+
+# [REQUIRED] Environment tier. 'sandbox' is typical for static analysis.
+environment: sandbox
+
+# [REQUIRED] Repository root — where the source code lives on disk.
+# For code targets, one of repoRoot or repoRootEnv is required.
+repoRoot: /path/to/your/project
+# repoRootEnv: MY_PROJECT_ROOT
+
+# Scoping — limit what the scanner examines.
+# Highly recommended for large repos to keep scan times reasonable.
+includePaths:
+  - src/
+# excludePaths:
+#   - dist
+#   - coverage
+#   - node_modules
+# routeRoots:
+#   - src/routes/
+# maxRoutes: 150
+# maxFiles: 5000
+
+# Hints — tell the scanner about your stack.
+# hints:
+#   stack: express-prisma
+#   framework: Express 5 + Prisma ORM
+#   entryPoints:
+#     - src/server.ts
+
+# Overlay — optional programme-specific configuration.
+# overlay: ./my-project-overlay.yaml
+
+# Strict verification requires all verification lanes to pass.
+# strictVerification: false
+
+# Required verification lanes.
+# requiredLanes:
+#   - test-synthesis
+
+# Test synthesis timeout (ms). Default is 120000 (2 minutes).
+# testSynthesis:
+#   timeoutMs: 120000

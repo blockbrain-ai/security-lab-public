@@ -1,0 +1,21 @@
+{
+  "overallVerdict": "no_material_findings",
+  "summary": "Fixture target scan completed. No material findings.",
+  "confidence": 0.95,
+  "confirmedVulnerabilities": [],
+  "validatedRisks": [],
+  "configurationRisks": [],
+  "unconfirmedLeads": [],
+  "suppressedClaims": [],
+  "nextActions": [
+    "Continue monitoring for new weak signals and expand the target surface or budget if deeper coverage is required."
+  ],
+  "source": "review_panel",
+  "reviewerModels": [
+    "test/fixture-queue"
+  ],
+  "synthesizerModel": null,
+  "parseStatus": "brace_json",
+  "verdict": "no_material_findings",
+  "executiveSummary": "Fixture target scan completed. No material findings."
+}

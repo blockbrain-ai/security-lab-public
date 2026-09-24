@@ -1,0 +1,17 @@
+# ============================================================================
+# Fixture static target — used by the tool's own tests and `npm run doctor`
+# ============================================================================
+# A minimal code-only target with no live component. It exists so the doctor,
+# the pipeline and the local-live tests have a stable, dependency-free profile
+# to point at. Replace with your own profile (see example-code.yaml).
+# ============================================================================
+
+id: fixture-static
+name: Fixture Static Target
+description: Minimal code-only target used by the tool's own tests.
+kind: code
+environment: sandbox
+repoRootEnv: TARGET_REPO_ROOT
+includePaths:
+  - src
+maxFiles: 500

@@ -1,0 +1,42 @@
+{
+  "name": "@security-lab/attack-lab",
+  "version": "0.1.0",
+  "description": "Investigation runner: plans adversarial scenarios, drives provider adapters and verification lanes, and exposes the Security Lab CLI.",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Chris Walker",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blockbrain-ai/security-lab.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "node --test --import tsx $(find src -name '*.test.ts' | sort)",
+    "test:coverage": "node --test --experimental-test-coverage --import tsx $(find src -name '*.test.ts' | sort)",
+    "test:integration": "node --test --import tsx $(find src -name '*.test.ts' | sort)",
+    "test:soak": "node --test --import tsx src/testing/soak.test.ts",
+    "lab:run": "tsx src/cli/run.ts",
+    "fixture:server": "tsx src/testing/fixture-server.ts",
+    "investigate": "tsx src/autonomous/cli.ts",
+    "verify": "tsx src/autonomous/verify-cli.ts",
+    "doctor": "tsx src/doctor/cli.ts",
+    "sentinel": "tsx src/supply-chain/cli.ts",
+    "sentinel:status": "tsx src/supply-chain/cli.ts --status",
+    "sentinel:approve": "tsx src/supply-chain/cli.ts --approve",
+    "bundle": "esbuild src/autonomous/cli.ts --bundle --platform=node --format=esm --outfile=dist/runner.js --minify --tree-shaking=true --banner:js='import { createRequire } from \"module\"; const require = createRequire(import.meta.url);' --external:@anthropic-ai/sdk --external:openai --external:@google/generative-ai"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.86.1",
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^6.34.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.7"
+  }
+}

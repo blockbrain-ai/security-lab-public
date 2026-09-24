@@ -1,0 +1,27 @@
+node_modules/
+packages/attack-lab/data/
+data/
+.DS_Store
+.security-lab-baseline.json
+.security-lab-stop
+.env
+.env.*
+!.env.example
+
+.pipeline/
+
+# Build artifacts
+.out.hvm
+dist/
+
+# Test run output
+test-results/
+
+# Local session logs
+.verification-session.log
+
+# Curated/exported material not part of the public extract
+docs/presentation/
+
+# Run-specific advisory/finding outputs (live in target workspaces, not in the tool repo)
+*/advisories/

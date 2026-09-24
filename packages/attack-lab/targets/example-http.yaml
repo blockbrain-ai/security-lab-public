@@ -1,0 +1,123 @@
+# ============================================================================
+# Example HTTP Target Profile — Starter Template
+# ============================================================================
+#
+# Copy this file and fill in the placeholders to onboard a new HTTP target.
+# See docs/TARGET-ONBOARDING.md for a walkthrough.
+#
+# This template is for targets where you want Security Lab to:
+#   - Scan the source code for vulnerabilities
+#   - Extract HTTP routes and auth surfaces
+#   - Run live probes against a running instance
+#   - Perform dependency scanning
+#
+# Required fields are marked with [REQUIRED].
+# ============================================================================
+
+# [REQUIRED] Unique identifier for this target. Use lowercase-kebab-case.
+id: my-app-local
+
+# Human-readable name shown in reports.
+name: My Application (Local)
+
+# Brief description of what this target is.
+description: >
+  Local development instance of My Application.
+  Replace this with a description of your programme.
+
+# [REQUIRED] Target kind. Use 'http' for web applications with live probing.
+kind: http
+
+# [REQUIRED] Environment tier. Controls what probes are allowed.
+#   - fixture:             Lab's own test fixtures
+#   - sandbox:             Isolated test environment
+#   - local_live:          Local running instance
+#   - staging:             Staging/pre-production
+#   - hosted_authorized:   Production with explicit authorization
+#   - production_shadow:   Read-only production observation
+environment: local_live
+
+# [REQUIRED for HTTP targets] Base URL of the running application.
+baseUrl: http://localhost:3000
+
+# Repository root — where the source code lives on disk.
+# Used for static code scanning (route extraction, auth detection, etc.).
+# You can use repoRootEnv instead to read from an environment variable.
+repoRoot: /path/to/your/project
+# repoRootEnv: MY_APP_ROOT
+
+# Default HTTP headers sent with every probe request.
+# defaultHeaders:
+#   x-api-key: test-key-here
+
+# Auth mechanism configuration.
+# Uncomment and configure if your app uses a tenant header for auth.
+# authMechanism:
+#   tenantHeader: x-tenant-id
+
+# Identities for the identity ladder — used during live probing.
+# Each identity represents a different privilege level.
+identities:
+  - id: anonymous
+    label: Anonymous user
+    description: No authentication
+  - id: regular-user
+    label: Regular user
+    description: Standard authenticated user
+    # credentials:
+    #   email: test@example.com
+    #   password: test-password
+
+# Canary specifications — known-safe requests that validate probe infrastructure.
+canaries:
+  - id: health-check
+    description: Verify the app is responding
+    request:
+      method: GET
+      path: /health
+    expectedStatus: 200
+
+# Live probing configuration.
+liveProbing:
+  rateLimit:
+    requestsPerSecond: 5
+    burstSize: 10
+
+# Scoping — limit which files the scanner examines.
+# includePaths:
+#   - src/
+#   - lib/
+# excludePaths:
+#   - node_modules
+#   - dist
+#   - coverage
+# routeRoots:
+#   - src/routes/
+#   - src/api/
+# maxRoutes: 100
+# maxFiles: 5000
+
+# Hints — tell the scanner about your stack so it can prioritize.
+# hints:
+#   stack: express-prisma
+#   framework: Express 5 + Prisma ORM
+#   entryPoints:
+#     - src/server.ts
+#   authSurfaces:
+#     - src/middleware/auth.ts
+
+# Overlay — programme-specific vulnerability families and trust boundaries.
+# Can be a path to a separate YAML file or an inline object.
+# overlay: ./my-app-overlay.yaml
+# overlay:
+#   highValuePatterns:
+#     - "$queryRaw"
+#     - eval(
+#   trustBoundaries:
+#     - from: external_untrusted
+#       to: public_api
+#       mechanism: rate limiting + input validation
+#   vulnerabilityFamilies:
+#     - family: injection
+#       description: SQL/NoSQL injection via user input
+#       priority: critical

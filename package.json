@@ -1,0 +1,45 @@
+{
+  "name": "security-lab",
+  "version": "0.1.0",
+  "description": "Autonomous security-testing tool for probing systems you own with replayable scenarios, bounded guardrails, and append-only evidence.",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Chris Walker",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blockbrain-ai/security-lab.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "test:coverage": "npm run test:coverage --workspaces",
+    "test:integration": "npm run test:integration --workspace @security-lab/attack-lab",
+    "doctor": "npm run doctor --workspace @security-lab/attack-lab --",
+    "check-coverage": "node scripts/check-coverage.mjs",
+    "lab:run": "npm run lab:run --workspace @security-lab/attack-lab --",
+    "lab:report": "npm run evidence:report --workspace @security-lab/evidence-plane --",
+    "repair:campaign-artifacts": "tsx scripts/repair-campaign-artifacts.ts",
+    "fixture:server": "npm run fixture:server --workspace @security-lab/attack-lab",
+    "investigate": "npm run investigate --workspace @security-lab/attack-lab --",
+    "verify": "npm run verify --workspace @security-lab/attack-lab --",
+    "sentinel": "npm run sentinel --workspace @security-lab/attack-lab --",
+    "sentinel:status": "npm run sentinel:status --workspace @security-lab/attack-lab --",
+    "sentinel:approve": "npm run sentinel:approve --workspace @security-lab/attack-lab --",
+    "verify:from-campaign": "node scripts/verify-from-campaign.mjs",
+    "fixture:smoke": "node scripts/run-fixture-smoke.mjs",
+    "verify:campaign-soak": "npm run test:soak --workspace @security-lab/attack-lab",
+    "verify:full": "node scripts/verify-full.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,42 @@
+# ============================================================================
+# Fixture local-live target — used by the tool's own tests and `npm run doctor`
+# ============================================================================
+# A minimal local-live target that declares a Linux compose sidecar and a JWT
+# auth bootstrap. It exists so the local-live machinery can be exercised
+# without a real application. Replace with your own profile (example-http.yaml).
+# ============================================================================
+
+extends: ./fixture-static.yaml
+id: fixture-local-live-linux
+name: Fixture Local Live (Linux sidecar)
+description: Minimal local-live target used by the tool's own tests.
+kind: http
+environment: local_live
+baseUrl: http://localhost:4019
+requiredIdentities:
+  - user_a_low
+  - user_b_low
+identities:
+  - id: user_a_low
+    kind: bearer_token
+    tokenEnv: FIXTURE_USER_A_TOKEN
+    expectedRole: user
+  - id: user_b_low
+    kind: bearer_token
+    tokenEnv: FIXTURE_USER_B_TOKEN
+    expectedRole: user
+linuxSidecar:
+  composeService: backend
+  composeProjectName: fixture-security-lab
+  buildOnStartup: true
+localStartup:
+  command: docker
+localShutdown:
+  command: docker
+authBootstrap:
+  type: fixture_local_jwt
+  secret: bootstrap-secret
+verificationPolicy:
+  localLiveRounds: 3
+  cleanStartup: true
+  removeVolumesOnShutdown: true

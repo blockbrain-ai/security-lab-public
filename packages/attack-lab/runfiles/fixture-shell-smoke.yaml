@@ -1,0 +1,58 @@
+id: fixture-shell-smoke
+name: Fixture Shell Unauthorized Access Smoke
+description: Validate shell-target execution and blocked secret access against a local seeded target.
+mode: declared
+orchestration:
+  planner:
+    strategy: scripted
+  executor:
+    strategy: scripted
+  judge:
+    strategy: scripted
+  reporter:
+    strategy: scripted
+targets:
+  - id: fixture-shell
+    kind: shell
+    environment: fixture
+    cwd: .
+scenarios:
+  - id: fx-shell-001
+    title: Shell fixture health remains reachable
+    severity: low
+    target: fixture-shell
+    steps:
+      - id: shell-health
+        title: Run shell health subcommand
+        probe:
+          kind: shell_command
+          command:
+            - sh
+            - fixtures/seeded-target.sh
+            - health
+        expect:
+          safetyState: allowed
+          exitCode: 0
+          stdoutIncludes:
+            - fixture-shell-ok
+  - id: fx-shell-002
+    title: Unauthorized shell secret access remains blocked
+    severity: critical
+    target: fixture-shell
+    steps:
+      - id: shell-secret
+        title: Attempt secret read without a token
+        probe:
+          kind: shell_command
+          command:
+            - sh
+            - fixtures/seeded-target.sh
+            - secret
+        expect:
+          safetyState: blocked
+          exitCode: 23
+          stderrIncludes:
+            - unauthorized
+          stdoutExcludes:
+            - fixture-shell-secret
+

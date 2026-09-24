@@ -1,0 +1,140 @@
+{
+  "campaignId": "<STRIPPED>",
+  "status": "iteration_limit",
+  "targetId": "target",
+  "targetLabel": "target",
+  "targetKind": "code",
+  "environment": "sandbox",
+  "mode": "declared",
+  "startedAt": "<STRIPPED>",
+  "completedAt": "<STRIPPED>",
+  "iterations": 1,
+  "totalCostUsd": 0.003,
+  "signalsFound": 1,
+  "signalsDormant": 0,
+  "signalsReactivated": 0,
+  "hypothesesTested": 1,
+  "chainHypothesesTested": 0,
+  "directHypothesesTested": 1,
+  "hypothesesConfirmed": 0,
+  "hypothesesRefuted": 1,
+  "maxChainLength": 0,
+  "chainLengthDistribution": {},
+  "findings": [],
+  "topSignals": [
+    {
+      "id": "ws-0-1",
+      "surface": "code",
+      "confidence": 0.85,
+      "status": "active",
+      "description": "bypassPermissions flag detected in src/app.ts",
+      "relatedAssets": [
+        "src/app.ts"
+      ]
+    }
+  ],
+  "refutedHypotheses": [
+    "bypassPermissions may allow unchecked policy override"
+  ],
+  "telemetrySummary": "Total cost: $0.0030\nTotal tokens: 30 in / 60 out\nTotal duration: 0.0s\nInvocations: 3\n\nBy kind:\n  plan: 1 calls, $0.0010, 0.0s\n  judge: 1 calls, $0.0010, 0.0s\n  reporter: 1 calls, $0.0010, 0.0s",
+  "executionStatus": "complete",
+  "coverageGaps": [],
+  "meaningfulAttempts": 0,
+  "childCampaigns": [],
+  "requiredCoverageSatisfied": true,
+  "assessmentParseStatus": "brace_json",
+  "assessmentVerdict": "no_material_findings",
+  "assessmentConfidence": 0.95,
+  "assessmentSummary": "Fixture target scan completed. No material findings.",
+  "endToEndCostUsd": 0.003,
+  "endToEndDurationMs": "<STRIPPED>",
+  "portfolioId": "production",
+  "plannerModel": "anthropic/claude-sonnet-4-6",
+  "judgeModel": "anthropic/claude-sonnet-4-6",
+  "judgePanelModels": [
+    "openai/gpt-5.4",
+    "anthropic/claude-opus-4-6"
+  ],
+  "synthesizerModel": "anthropic/claude-opus-4-6",
+  "knowledgeBasePath": "<TMPDIR>/campaigns/<INV>/knowledge/target.json",
+  "priorKnowledgeUsed": true,
+  "localLive": null,
+  "testSynthesis": null,
+  "modelActivity": [
+    {
+      "role": "judge",
+      "provider": "test",
+      "model": "fixture-queue",
+      "calls": 1,
+      "costUsd": 0.001
+    },
+    {
+      "role": "plan",
+      "provider": "test",
+      "model": "fixture-queue",
+      "calls": 1,
+      "costUsd": 0.001
+    },
+    {
+      "role": "reporter",
+      "provider": "test",
+      "model": "fixture-queue",
+      "calls": 1,
+      "costUsd": 0.001
+    }
+  ],
+  "executiveAssessment": {
+    "overallVerdict": "no_material_findings",
+    "summary": "Fixture target scan completed. No material findings.",
+    "confidence": 0.95,
+    "confirmedVulnerabilities": [],
+    "validatedRisks": [],
+    "configurationRisks": [],
+    "unconfirmedLeads": [],
+    "suppressedClaims": [],
+    "nextActions": [
+      "Continue monitoring for new weak signals and expand the target surface or budget if deeper coverage is required."
+    ],
+    "source": "review_panel",
+    "reviewerModels": [
+      "test/fixture-queue"
+    ],
+    "synthesizerModel": null,
+    "parseStatus": "brace_json",
+    "verdict": "no_material_findings",
+    "executiveSummary": "Fixture target scan completed. No material findings."
+  },
+  "campaignAssessment": {
+    "overallVerdict": "no_material_findings",
+    "summary": "Fixture target scan completed. No material findings.",
+    "confidence": 0.95,
+    "confirmedVulnerabilities": [],
+    "validatedRisks": [],
+    "configurationRisks": [],
+    "unconfirmedLeads": [],
+    "suppressedClaims": [],
+    "nextActions": [
+      "Continue monitoring for new weak signals and expand the target surface or budget if deeper coverage is required."
+    ],
+    "source": "review_panel",
+    "reviewerModels": [
+      "test/fixture-queue"
+    ],
+    "synthesizerModel": null,
+    "parseStatus": "brace_json",
+    "verdict": "no_material_findings",
+    "executiveSummary": "Fixture target scan completed. No material findings."
+  },
+  "executiveVerdict": "no_material_findings",
+  "targetCoverage": {
+    "coverage": "full",
+    "supportedProbeKinds": [
+      "code_read",
+      "dependency_read",
+      "dependency_scan",
+      "state_check",
+      "evidence_check"
+    ]
+  },
+  "runMode": "smoke"
+}

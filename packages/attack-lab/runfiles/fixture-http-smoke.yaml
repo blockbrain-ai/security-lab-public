@@ -1,0 +1,71 @@
+id: fixture-http-smoke
+name: Fixture HTTP Unauthorized Access Smoke
+description: Validate the standalone Security Lab against a local HTTP fixture.
+mode: declared
+orchestration:
+  planner:
+    strategy: scripted
+    notes: authored regression pack
+  executor:
+    strategy: scripted
+  judge:
+    strategy: scripted
+  reporter:
+    strategy: scripted
+targets:
+  - id: fixture-http
+    kind: http
+    environment: fixture
+    baseUrl: http://127.0.0.1:4317
+scenarios:
+  - id: fx-http-001
+    title: Public health endpoint remains reachable
+    severity: low
+    target: fixture-http
+    steps:
+      - id: health
+        title: Read health
+        probe:
+          kind: http_request
+          method: GET
+          path: /health
+        expect:
+          safetyState: allowed
+          statusCode: 200
+          bodyIncludes:
+            - '"ok":true'
+  - id: fx-http-002
+    title: Unauthorized private endpoint remains blocked
+    severity: critical
+    target: fixture-http
+    steps:
+      - id: private-no-auth
+        title: Request private endpoint without a token
+        probe:
+          kind: http_request
+          method: GET
+          path: /private
+        expect:
+          safetyState: blocked
+          statusCode: 401
+          bodyExcludes:
+            - super-secret
+  - id: fx-http-003
+    title: Public proof stays redacted
+    severity: high
+    target: fixture-http
+    steps:
+      - id: public-proof
+        title: Read public proof
+        probe:
+          kind: http_request
+          method: GET
+          path: /public-proof
+        expect:
+          safetyState: allowed
+          statusCode: 200
+          bodyIncludes:
+            - redacted
+          bodyExcludes:
+            - internal-api-key
+
