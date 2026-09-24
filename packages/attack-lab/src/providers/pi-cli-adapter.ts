@@ -7,6 +7,8 @@ import type { ModelAdapter, ModelConfig, ModelResponse, InvokeOptions } from './
 import { tryParseStructured } from './parse-structured.js';
 import { WORKER_CONTRACT } from './worker-contract.js';
 
+import { argvLimitError, promptExceedsArgvLimit } from './argv-limits.js';
+
 const execFileAsync = promisify(execFile);
 
 export class PiCliAdapter implements ModelAdapter {
@@ -44,9 +46,16 @@ export class PiCliAdapter implements ModelAdapter {
     const requestTimeoutMs = options.requestTimeoutMs ?? this.defaultRequestTimeoutMs;
     const cwd = options.workingDirectory ?? this.workingDirectory;
 
-    const configDir = await this.ensureConfigDir();
     const prompt = buildPrompt(options.systemPrompt, options.prompt);
+    if (promptExceedsArgvLimit(prompt)) {
+      throw argvLimitError(
+        'PiCliAdapter',
+        prompt,
+        'Attach InvokeOptions.briefMode so large context stays on disk and the prompt stays small.',
+      );
+    }
 
+    const configDir = await this.ensureConfigDir();
     const args = this.buildSpawnArgs(prompt);
 
     let stdout: string;

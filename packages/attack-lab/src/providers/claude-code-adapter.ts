@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import type { ModelAdapter, ModelConfig, ModelResponse, InvokeOptions, TokenUsage } from './contracts.js';
 import { getProviderTimeoutListener } from './timeout.js';
+import { argvLimitError, promptExceedsArgvLimit } from './argv-limits.js';
 import { tryParseStructured } from './parse-structured.js';
 import { WORKER_CONTRACT } from './worker-contract.js';
 
@@ -54,6 +55,13 @@ export class ClaudeCodeAdapter implements ModelAdapter {
   ): Promise<ModelResponse<T>> {
     try {
       const prompt = buildPrompt(options.systemPrompt, options.prompt);
+      if (promptExceedsArgvLimit(prompt)) {
+        throw argvLimitError(
+          'ClaudeCodeAdapter',
+          prompt,
+          'Attach InvokeOptions.briefMode so large context stays on disk and the prompt stays small.',
+        );
+      }
       const args = [
         '-p',
         '--verbose',

@@ -12,6 +12,11 @@ import type { AuthorizationContext } from './contracts.js';
 
 const REQUIRED_CONFIRMATION = 'CONFIRM HOSTED PROBE';
 
+/** Automated callers must opt in explicitly; the default is fail-closed. */
+export function isTestMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env['SECURITY_LAB_TEST_MODE'] === '1';
+}
+
 // ---------------------------------------------------------------------------
 // Authorization gate
 // ---------------------------------------------------------------------------
@@ -35,7 +40,17 @@ export class AuthorizationGate {
     }
 
     if (options.skipPrompt) {
-      // Used by automated tests; never used in real campaigns.
+      // A skipped prompt is only legitimate in a test process. Without this
+      // check, every headless run (CI, cron, agent-driven) would silently
+      // downgrade the documented interactive confirmation to a self-minted
+      // token — the control would exist only on a TTY.
+      if (!isTestMode()) {
+        throw new Error(
+          'Hosted probing requires the interactive confirmation, but stdin is not a TTY. ' +
+            'Run the campaign from a terminal, pass a pre-authorized token, or set ' +
+            'SECURITY_LAB_TEST_MODE=1 when driving the gate from an automated test.',
+        );
+      }
       return `automated-${randomBytes(8).toString('hex')}`;
     }
 

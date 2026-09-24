@@ -2240,7 +2240,8 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
         campaignId: args.memory.campaignId,
         hostedTargetId: hostedMeta.id,
         baseUrl: hostedMeta.baseUrl,
-        authorizeFlagSet: true,
+        // The real flag, not a literal: the gate must be able to refuse on its own.
+        authorizeFlagSet: this.config.authorizeHosted === true,
       },
       { skipPrompt: !process.stdin.isTTY },
     );

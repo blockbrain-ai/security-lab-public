@@ -152,3 +152,18 @@ EOF
   // First call had no sessionId, second call should have sent sess-resume via --resume.
   assert.equal(resumeLog, 'sess-resume');
 });
+
+test('ClaudeCodeAdapter refuses a prompt too large for an argv entry', async () => {
+  // Linux rejects argv entries over ~128 KB with E2BIG; the adapter must fail
+  // with an actionable message before spawning, not with an OS error.
+  const adapter = new ClaudeCodeAdapter({
+    provider: 'claude_code',
+    model: 'claude-sonnet-4-5',
+    binaryPath: '/nonexistent/claude',
+  });
+
+  await assert.rejects(
+    adapter.invoke({ prompt: 'x'.repeat(200_000) }),
+    /ClaudeCodeAdapter cannot pass a .* as a command-line argument/,
+  );
+});

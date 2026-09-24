@@ -267,9 +267,12 @@ test('CodexCliAdapter accepts an oversized prompt when brief mode IS attached', 
   await writeFile(
     binaryPath,
     `#!/bin/sh
-cat <<'EOF'
+# Report how many bytes arrived on stdin, proving the prompt was piped rather
+# than passed as an argv entry (Linux rejects argv entries over ~128 KB).
+bytes=$(cat | wc -c | tr -d ' ')
+cat <<EOF
 {"type":"thread.started","thread_id":"thread-brief"}
-{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}
+{"type":"item.completed","item":{"type":"agent_message","text":"stdin_bytes=$bytes"}}
 {"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}
 EOF
 `,
@@ -299,4 +302,10 @@ EOF
   });
 
   assert.equal(response.sessionId, 'thread-brief');
+
+  // The prompt must have travelled on stdin: an argv transport would fail with
+  // E2BIG on Linux (max ~128 KB per argument).
+  assert.match(response.content, /stdin_bytes=\d+/);
+  const stdinBytes = Number(/stdin_bytes=(\d+)/.exec(response.content)?.[1] ?? '0');
+  assert.ok(stdinBytes > 100_000, `expected the oversized prompt on stdin, saw ${stdinBytes} bytes`);
 });

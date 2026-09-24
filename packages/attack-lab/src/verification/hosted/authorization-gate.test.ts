@@ -2,6 +2,10 @@ import { describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { AuthorizationGate } from './authorization-gate.js';
 
+// These tests drive the gate headlessly, which is exactly what the gate now
+// refuses outside an explicit test process.
+process.env['SECURITY_LAB_TEST_MODE'] = '1';
+
 describe('AuthorizationGate', () => {
   it('throws when authorize flag is not set', async () => {
     const gate = new AuthorizationGate();
@@ -37,5 +41,23 @@ describe('AuthorizationGate', () => {
       { skipPrompt: true },
     );
     assert.match(token, /^automated-/);
+  });
+
+  it('fails closed when the prompt is skipped outside a test process', async () => {
+    const previous = process.env['SECURITY_LAB_TEST_MODE'];
+    delete process.env['SECURITY_LAB_TEST_MODE'];
+    try {
+      const gate = new AuthorizationGate();
+      await assert.rejects(
+        () =>
+          gate.check(
+            { campaignId: 'c', hostedTargetId: 't', baseUrl: 'https://example', authorizeFlagSet: true },
+            { skipPrompt: true },
+          ),
+        /stdin is not a TTY/,
+      );
+    } finally {
+      process.env['SECURITY_LAB_TEST_MODE'] = previous;
+    }
   });
 });

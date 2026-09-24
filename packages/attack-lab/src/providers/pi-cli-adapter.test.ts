@@ -281,3 +281,16 @@ echo "ok"
   const lines = args.split('\n').filter(Boolean);
   assert.ok(!lines.includes('-p'), 'should not use -p in json mode');
 });
+
+test('PiCliAdapter refuses a prompt too large for an argv entry', async () => {
+  const adapter = new PiCliAdapter({
+    provider: 'pi_cli',
+    model: 'pi-test',
+    binaryPath: '/nonexistent/pi',
+  });
+
+  await assert.rejects(
+    adapter.invoke({ prompt: 'x'.repeat(200_000) }),
+    /PiCliAdapter cannot pass a .* as a command-line argument/,
+  );
+});

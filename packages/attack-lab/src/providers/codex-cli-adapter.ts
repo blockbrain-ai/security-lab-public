@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { ModelAdapter, ModelConfig, ModelResponse, InvokeOptions, TokenUsage } from './contracts.js';
 import { getProviderTimeoutListener } from './timeout.js';
@@ -24,6 +24,12 @@ const COST_TABLE: Record<string, { input: number; output: number }> = {
 // campaign that triggered this guard.
 const LARGE_PROMPT_TOKEN_THRESHOLD = 100_000;
 const CHARS_PER_TOKEN_APPROX = 4;
+
+// Linux caps a single argv entry at ~128 KB (MAX_ARG_STRLEN), so a prompt of
+// that size cannot be passed as an argument: the spawn fails with E2BIG. macOS
+// allows far more, which is why this only shows up in CI/Linux. Prompts above
+// this size are piped to the CLI on stdin instead ("-" reads stdin).
+const MAX_ARGV_PROMPT_BYTES = 100_000;
 
 interface CodexThreadEvent {
   type: 'thread.started';
@@ -128,13 +134,16 @@ export class CodexCliAdapter implements ModelAdapter {
           args.push('--add-dir', directory);
         }
       }
-      args.push(prompt);
-      const { stdout, stderr } = await execFileAsync(this.binaryPath, args, {
-        cwd,
-        timeout: requestTimeoutMs,
-        maxBuffer: 50 * 1024 * 1024,
-        env: process.env,
-      });
+      const promptViaStdin = Buffer.byteLength(prompt, 'utf8') > MAX_ARGV_PROMPT_BYTES;
+      args.push(promptViaStdin ? '-' : prompt);
+      const { stdout, stderr } = promptViaStdin
+        ? await this.runCodexWithStdin(args, { cwd, timeoutMs: requestTimeoutMs, stdinPayload: prompt })
+        : await execFileAsync(this.binaryPath, args, {
+            cwd,
+            timeout: requestTimeoutMs,
+            maxBuffer: 50 * 1024 * 1024,
+            env: process.env,
+          });
       const durationMs = Date.now() - startedAt;
       const parsed = parseCodexJson(stdout, stderr, this.model, this.isLocalInference);
       const structured = tryParseStructured(parsed.content, options.schema);
@@ -167,6 +176,74 @@ export class CodexCliAdapter implements ModelAdapter {
       }
       throw error;
     }
+  }
+
+  /**
+   * Run the CLI with the prompt supplied on stdin. Used for prompts that are
+   * too large for an argv entry (see MAX_ARGV_PROMPT_BYTES). Rejects with an
+   * error carrying `killed: true` on timeout so the caller emits the same
+   * provider_timeout event as the execFile path.
+   */
+  private runCodexWithStdin(
+    args: string[],
+    options: { cwd?: string; timeoutMs: number; stdinPayload: string },
+  ): Promise<{ stdout: string; stderr: string }> {
+    return new Promise((resolvePromise, rejectPromise) => {
+      const child = spawn(this.binaryPath, args, {
+        cwd: options.cwd,
+        env: process.env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      const MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
+
+      const finish = (error: Error | null): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        if (error) {
+          rejectPromise(error);
+          return;
+        }
+        resolvePromise({ stdout, stderr });
+      };
+
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        const error = new Error(`Codex CLI timed out after ${options.timeoutMs}ms`) as Error & { killed: boolean };
+        error.killed = true;
+        finish(error);
+      }, options.timeoutMs);
+
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+        if (stdout.length > MAX_OUTPUT_BYTES) {
+          child.kill('SIGKILL');
+          finish(new Error('Codex CLI produced more output than the 50MB buffer allows'));
+        }
+      });
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+      });
+      child.on('error', (error) => finish(error));
+      child.on('close', (code) => {
+        if (code !== 0 && stdout.trim() === '') {
+          finish(new Error(`Codex CLI exited with code ${code ?? 'unknown'}: ${stderr.trim().slice(0, 500)}`));
+          return;
+        }
+        finish(null);
+      });
+
+      child.stdin?.on('error', () => {
+        // The CLI may exit before consuming stdin; the close handler decides.
+      });
+      child.stdin?.end(options.stdinPayload, 'utf8');
+    });
   }
 
   private buildFreshTransportArgs(): string[] {

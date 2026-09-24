@@ -5,6 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+// This suite drives the hosted lane headlessly, which the authorization gate
+// refuses outside an explicit test process (it would otherwise have to invent
+// an operator confirmation).
+process.env['SECURITY_LAB_TEST_MODE'] = '1';
+
 import type { InvokeOptions, ModelAdapter, ModelResponse } from '../providers/contracts.js';
 import { UnavailableAdapter } from '../providers/unavailable-adapter.js';
 import {
