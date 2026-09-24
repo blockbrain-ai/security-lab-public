@@ -26,15 +26,24 @@ export interface WorktreeOptions {
   testId: string;
   /** Base directory for worktree storage. */
   baseDir: string;
+  /**
+   * Use `git worktree` instead of copying the tree. Off by default: a worktree
+   * writes into the scanned repository's `.git` directory (and its removal uses
+   * `--force`), which mutates a repo the operator may only be authorised to
+   * read. A copy costs disk space and no writes.
+   */
+  useGitWorktree?: boolean;
 }
 
 export async function createIsolatedWorktree(options: WorktreeOptions): Promise<string> {
   const worktreePath = resolve(options.baseDir, options.campaignId, options.testId);
   await mkdir(worktreePath, { recursive: true });
 
-  // Try git worktree if the source is a git repo
+  // Only register a worktree when the caller explicitly asks for one: a
+  // worktree writes into the scanned repository's .git directory and its
+  // removal uses --force.
   const isGitRepo = existsSync(join(options.repoRoot, '.git'));
-  if (isGitRepo) {
+  if (options.useGitWorktree === true && isGitRepo) {
     try {
       await runCommand('git', ['worktree', 'add', '--detach', worktreePath, 'HEAD'], {
         cwd: options.repoRoot,

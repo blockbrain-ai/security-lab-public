@@ -75,6 +75,7 @@ import { getDefaultProfile, shouldUseCounterPlanner, shouldUseJudgePanel, should
 import { runJudgePanel, normalizePanelForSynthesis, type PanelMember, type PanelResult } from '../orchestration/judge-panel.js';
 import { synthesize, type SynthesisResult } from '../orchestration/synthesizer.js';
 import { verifyCampaignEvidence } from './evidence-integrity.js';
+import { checkpointBefore, firstStageForResume } from './resume-checkpoint.js';
 import {
   buildDeterministicCampaignAssessment,
   reviewCampaignAssessment,
@@ -611,14 +612,12 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
       if (this.config.maxIterations > state.maxIterations) {
         state.maxIterations = this.config.maxIterations;
       }
-      // Section 1.1: if resumeAtStage is set, align the lastCompletedStage
-      if (this.config.resumeAtStage) {
-        const targetStageIdx = stageIndex(this.config.resumeAtStage);
-        if (targetStageIdx > 0) {
-          state.lastCompletedStage = STAGES[targetStageIdx - 1] ?? null;
-        } else {
-          state.lastCompletedStage = null;
-        }
+      // Align the checkpoint with the resume point. `--resume-at` must move the
+      // checkpoint too, not just the phase, or every stage is re-run and the
+      // static stage's completion event rewinds lastCompletedStage.
+      const resumeStage = firstStageForResume(this.config.resumeAt ?? 'auto', this.config.resumeAtStage);
+      if (resumeStage) {
+        state.lastCompletedStage = checkpointBefore(resumeStage);
         state.currentStage = null;
       }
       const memory = (await loadMemory(state.memoryPath)) ?? createEmptyMemory(state.campaignId);
@@ -2796,7 +2795,13 @@ export abstract class InvestigationRunnerInternals extends InvestigationRunnerLo
       priorKnowledge = [priorKnowledge, summarizedKnowledge].filter(Boolean).join('\n\n---\n\n');
 
       if (target.repoRoot) {
-        sentinelResult = await runSentinel(target.repoRoot);
+        // The baseline belongs to the campaign, not to the scanned repository:
+        // writing `.security-lab-baseline.json` into a target we may only have
+        // read authorisation for is a side effect the operator did not ask for.
+        sentinelResult = await runSentinel(
+          target.repoRoot,
+          resolve(this.config.campaignDir, campaignId, 'supply-chain-baseline.json'),
+        );
         await evidenceStore.appendEvent('supply_chain_sentinel', {
           baselineStatus: sentinelResult.baselineStatus,
           driftCount: sentinelResult.drifts.length,
