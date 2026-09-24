@@ -4,6 +4,7 @@
  */
 
 import type { RollbackSpec, RollbackCommand } from './contracts.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 export interface MutationEntry {
   id: string;
@@ -58,7 +59,7 @@ export class MutationJournal {
 
     for (const entry of this.getPendingRollbacks()) {
       try {
-        const url = new URL(entry.rollback.path, baseUrl).toString();
+        const url = resolveRequestUrl(entry.rollback.path, baseUrl, { label: 'rollback path' });
         const response = await fetchFn(url, {
           method: entry.rollback.method,
           headers: entry.rollback.headers,

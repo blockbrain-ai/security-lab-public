@@ -18,6 +18,7 @@ import type {
   BrowserStorageState,
 } from './browser-evidence.js';
 import { BrowserEvidenceCollector } from './browser-evidence.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 // ---------------------------------------------------------------------------
 // Target-declared browser configuration
@@ -192,9 +193,12 @@ export async function runBrowserSession(
     }
 
     // Navigate to evidence collection paths
-    if (capability.evidencePaths) {
+    if (capability.evidencePaths && capability.bootstrapUrl) {
       for (const path of capability.evidencePaths) {
-        const url = new URL(path, capability.bootstrapUrl).toString();
+        if (!path) {
+          continue;
+        }
+        const url = resolveRequestUrl(path, capability.bootstrapUrl, { label: 'browser bootstrap path' });
         const response = await page.goto(url, {
           timeout: navTimeout,
           waitUntil: 'load',

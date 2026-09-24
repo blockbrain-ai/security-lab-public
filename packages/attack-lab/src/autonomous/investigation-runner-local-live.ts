@@ -78,6 +78,7 @@ import type { CampaignMemory, ChainHypothesis } from './contracts.js';
 import type { InvestigationState } from './state.js';
 import type { InvestigationTarget } from './target-profile.js';
 import { loadInvestigationTarget } from './target-profile.js';
+import { buildRuntimeTargetContext } from './probe-executor.js';
 import type { StateStore } from './state.js';
 import type { PortfolioProfile } from '../orchestration/portfolio-profiles.js';
 import { shouldUseCounterPlanner, getDefaultProfile } from '../orchestration/portfolio-profiles.js';
@@ -1098,6 +1099,12 @@ export abstract class InvestigationRunnerLocalLive {
         canaries: args.canaries,
         allowMutations: args.allowMutations,
         dryRunMutations: this.config.dryRunMutations,
+        // Policy gate also lives inside executeLiveProbe; passing it here keeps
+        // the lanes in step if a future caller forgets.
+        runtime: this.runtime,
+        runtimeTargetContext: buildRuntimeTargetContext(args.liveTarget),
+        mode: this.config.mode,
+
         strictProbes: this.config.strictProbes,
         entityInventory: args.entityInventory,
         onEvent: async (stage, payload) => {
@@ -1577,6 +1584,10 @@ export abstract class InvestigationRunnerLocalLive {
           strictProbes: this.config.strictProbes,
           onEvent: liveReplayEventHandler,
           entityInventory,
+          // Canary probes are live requests: they pass the same policy gate.
+          runtime: this.runtime,
+          runtimeTargetContext: buildRuntimeTargetContext(liveTarget),
+          mode: this.config.mode,
         });
         for (const cr of canaryResults) { cr.origin = 'canary'; }
         tallyResultsByOrigin(canaryResults);
@@ -1677,6 +1688,12 @@ export abstract class InvestigationRunnerLocalLive {
               request,
               browserLauncher,
               args.campaignDir,
+              // Browser probes are live requests; they pass the policy gate too.
+              {
+                runtime: this.runtime,
+                runtimeTargetContext: buildRuntimeTargetContext(liveTarget),
+                mode: this.config.mode,
+              },
             );
             accumulateBrowserProbeResult(browserExploitSummary, result);
 

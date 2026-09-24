@@ -5,6 +5,7 @@
  */
 
 import type { ProbeObservation } from '../../../evidence-plane/src/contracts.js';
+import { resolveRequestUrl } from '../verification/shared/url-policy.js';
 
 export interface PromptProbeConfig {
   kind: 'prompt_injection';
@@ -28,7 +29,7 @@ export async function runPromptProbe(
   const start = Date.now();
 
   try {
-    const url = new URL(probe.endpoint ?? '/api/v1/health', baseUrl);
+    const url = resolveRequestUrl(probe.endpoint ?? '/api/v1/health', baseUrl, { label: 'prompt probe endpoint' });
     const body = JSON.stringify({
       [probe.targetField]: probe.payload,
       _probeMetadata: { action: probe.action, targetField: probe.targetField },

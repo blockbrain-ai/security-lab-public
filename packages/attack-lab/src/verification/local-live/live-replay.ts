@@ -8,6 +8,7 @@ import type { LiveProbeRequest, LiveExecutionResult, CanarySpec, ProbeSequenceDe
 import { matchCanary, type CanaryMatch } from './canary-harness.js';
 import { IdentityLadder } from './identity-ladder.js';
 import { RateLimiter } from './rate-limiter.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 import { MutationJournal } from './reversible-mutation.js';
 import {
   COVERAGE_GAP_EVENT_STAGES,
@@ -18,6 +19,7 @@ import {
   type ProbeParameterResolutionSucceededPayload,
 } from '../../../../evidence-plane/src/events/coverage-gap-events.js';
 import type { EntityInventory } from '../probe-intelligence/entity-inventory.js';
+import type { SecurityMode } from '../../../../evidence-plane/src/contracts.js';
 import {
   hasUnresolvedPlaceholders,
 } from '../probe-intelligence/entity-inventory.js';
@@ -30,6 +32,8 @@ import {
   discoverEntitiesFromResponse,
 } from '../probe-intelligence/entity-resolution.js';
 import { addEntity } from '../probe-intelligence/entity-inventory.js';
+import type { SecurityRuntime } from '../../../../security-runtime/src/runtime.js';
+import type { RuntimeTargetContext } from '../../../../security-runtime/src/contracts.js';
 
 /**
  * Typed live-replay event emission. Section 3.1 coverage gaps and dry-run
@@ -70,6 +74,16 @@ export interface LiveReplayOptions {
    * degraded to coverage gaps instead of firing with literal placeholders.
    */
   entityInventory?: EntityInventory;
+  /**
+   * Policy runtime. When supplied, every HTTP probe executes only after an
+   * authorizing decision, so no caller (canaries, worker-requested probes,
+   * sequence steps, identity differentials) can reach the network without one.
+   */
+  runtime?: SecurityRuntime;
+  /** Target context handed to the policy runtime. */
+  runtimeTargetContext?: RuntimeTargetContext;
+  /** Security mode reported to the policy runtime (default `declared`). */
+  mode?: SecurityMode;
 }
 
 function emitCoverageGap(
@@ -97,6 +111,49 @@ export async function executeLiveProbe(
   const fetchFn = options.fetchFn ?? fetch;
   const probeId = `live-${probe.findingId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let http = sanitizeHttpProbe(probe.http);
+
+  // Policy gate at the choke point — before parameter resolution, rate limiting
+  // or any network call.
+  if (options.runtime) {
+    if (!options.runtimeTargetContext) {
+      return {
+        probeId,
+        findingId: probe.findingId,
+        identityId: probe.identityId,
+        request: { method: http?.method ?? 'GET', url: http?.path ?? '', headers: {}, body: undefined },
+        response: { status: 0, headers: {}, body: '', durationMs: 0 },
+        rollbackExecuted: false,
+        verdict: 'not_authorized',
+        reasoning: 'probe refused: a policy runtime was supplied without a target context (environment tier unknown)',
+      };
+    }
+    const decision = options.runtime.authorizeProbe(options.mode ?? 'declared', options.runtimeTargetContext, {
+      kind: http?.body ? 'prompt_injection' : 'http_request',
+      timeoutMs: 20_000,
+      method: http?.method,
+      body: http?.body,
+    });
+    if (!decision.allowed) {
+      const reason = `policy blocked: ${decision.reason ?? 'blocked'}`;
+      emitCoverageGap(options, {
+        code: 'probe_blocked_by_policy',
+        probeId,
+        identityId: probe.identityId,
+        reason,
+        context: { method: http?.method, path: http?.path },
+      });
+      return {
+        probeId,
+        findingId: probe.findingId,
+        identityId: probe.identityId,
+        request: { method: http?.method ?? 'GET', url: http?.path ?? '', headers: {}, body: undefined },
+        response: { status: 0, headers: {}, body: '', durationMs: 0 },
+        rollbackExecuted: false,
+        verdict: 'not_authorized',
+        reasoning: reason,
+      };
+    }
+  }
 
   // Section 11.1 — resolve placeholders from entity inventory
   if (http && options.entityInventory && hasUnresolvedPlaceholders(http.path)) {
@@ -203,7 +260,7 @@ export async function executeLiveProbe(
 
   // Section 3.1: dry-run mode for mutations without opt-in
   if (shouldDryRun && http) {
-    const url = new URL(http.path, options.baseUrl).toString();
+    const url = resolveRequestUrl(http.path, options.baseUrl, { label: 'live probe path' });
     const headers = { ...identityHeaders, ...http.headers };
     // Emit dry-run probe event
     emitDryRunProbe(options, {
@@ -272,7 +329,7 @@ export async function executeLiveProbe(
     };
   }
 
-  const url = new URL(http.path, options.baseUrl).toString();
+  const url = resolveRequestUrl(http.path, options.baseUrl, { label: 'live probe path' });
   const headers = { ...identityHeaders, ...http.headers };
   const start = Date.now();
 

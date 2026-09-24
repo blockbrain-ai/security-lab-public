@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { executeLiveProbe } from './live-replay.js';
 import { IdentityLadder } from './identity-ladder.js';
 import { RateLimiter } from './rate-limiter.js';
@@ -182,4 +185,75 @@ test('executeLiveProbe strips bodies from GET probes before issuing the request'
   assert.equal(capturedInit?.body, undefined);
   assert.equal(result.request.body, undefined);
   assert.equal(result.verdict, 'refuted');
+});
+
+test('executeLiveProbe refuses to fire when the policy runtime blocks it', async () => {
+  let fetched = 0;
+  const gaps: Array<{ code: string; reason: string }> = [];
+  const base = buildOptions(async () => {
+    fetched += 1;
+    return new Response('should not happen', { status: 200 });
+  });
+
+  const result = await executeLiveProbe(
+    {
+      findingId: 'f-gate',
+      hypothesis: 'tenant isolation bypass',
+      probeKind: 'http',
+      identityId: 'guest',
+      http: { method: 'GET', path: '/api/records/1' },
+      expectedWhenExploitable: { statusIn: [200] },
+    },
+    {
+      ...base,
+      onEvent: (stage: string, payload: unknown) => {
+        if (stage === 'coverage_gap') {
+          const p = payload as { code: string; reason: string };
+          gaps.push({ code: p.code, reason: p.reason });
+        }
+      },
+      runtime: {
+        authorizeProbe: () => ({
+          allowed: false,
+          observedSafetyState: 'blocked',
+          reason: 'Kill switch is active',
+          mode: 'declared',
+        }),
+      },
+      runtimeTargetContext: {
+        id: 'fixture',
+        kind: 'http',
+        environment: 'sandbox',
+        baseUrl: 'http://localhost:4000',
+      },
+    } as never,
+  );
+
+  assert.equal(result.verdict, 'not_authorized');
+  assert.match(result.reasoning, /Kill switch is active/);
+  assert.equal(fetched, 0, 'a blocked probe must not reach the network');
+  assert.equal(gaps.length, 1);
+  assert.equal(gaps[0]!.code, 'probe_blocked_by_policy');
+});
+
+test('executeLiveProbe refuses when a runtime is supplied without a target context', async () => {
+  const base = buildOptions(async () => new Response('nope', { status: 200 }));
+
+  const result = await executeLiveProbe(
+    {
+      findingId: 'f-gate-2',
+      hypothesis: 'x',
+      probeKind: 'http',
+      identityId: 'guest',
+      http: { method: 'GET', path: '/api/records/1' },
+      expectedWhenExploitable: { statusIn: [200] },
+    },
+    {
+      ...base,
+      runtime: { authorizeProbe: () => ({ allowed: true }) },
+    } as never,
+  );
+
+  assert.equal(result.verdict, 'not_authorized');
+  assert.match(result.reasoning, /environment tier unknown/);
 });

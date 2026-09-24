@@ -1,12 +1,13 @@
 import type { ProbeObservation } from '../../../evidence-plane/src/contracts.js';
 import type { SecurityLabProbe, SecurityLabTarget } from '../types/runfile.js';
+import { resolveRequestUrl } from '../verification/shared/url-policy.js';
 
 export async function runHttpProbe(
   probe: Extract<SecurityLabProbe, { kind: 'http_request' }>,
   target: Extract<SecurityLabTarget, { kind: 'http' }>,
 ): Promise<ProbeObservation> {
   const startedAt = Date.now();
-  const url = new URL(probe.path, target.baseUrl).toString();
+  const url = resolveRequestUrl(probe.path, target.baseUrl, { label: 'runfile probe path' });
   const headers = {
     ...(target.defaultHeaders ?? {}),
     ...(probe.headers ?? {}),

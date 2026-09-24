@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  executeBrowserProbe,
   BROWSER_FAMILY_REGISTRY,
   classifyBrowserHypothesis,
   getBrowserFamilyDefinition,
@@ -200,4 +201,46 @@ test('accumulateBrowserProbeResult — does not duplicate variant keys', () => {
 
   assert.equal(summary.byFamily['websocket_origin'].probes, 2);
   assert.deepEqual(summary.byFamily['websocket_origin'].variants, ['cross_origin_ws']);
+});
+
+test('executeBrowserProbe does not launch a browser when the policy runtime blocks it', async () => {
+  let launched = 0;
+  const launcher = (async () => {
+    launched += 1;
+    throw new Error('launcher must not be called for a blocked probe');
+  }) as never;
+
+  const result = await executeBrowserProbe(
+    {
+      findingId: 'f-browser-gate',
+      hypothesis: 'stored XSS in a shared field',
+      family: 'stored_xss',
+      variant: 'default',
+      targetBaseUrl: 'https://staging.example',
+      targetPath: '/records/1',
+    },
+    launcher,
+    '/tmp/sl-browser-gate',
+    {
+      runtime: {
+        authorizeProbe: () => ({
+          allowed: false,
+          observedSafetyState: 'blocked',
+          reason: 'Shell-adjacent probes are disabled in staging',
+          mode: 'declared',
+        }),
+      } as never,
+      runtimeTargetContext: {
+        id: 'staging-fixture',
+        kind: 'http',
+        environment: 'staging',
+        baseUrl: 'https://staging.example',
+      },
+    },
+  );
+
+  assert.equal(result.verdict, 'not_authorized');
+  assert.match(result.reasoning, /Shell-adjacent probes are disabled/);
+  assert.equal(launched, 0, 'a blocked browser probe must not launch a browser');
+  assert.equal(result.evidence.screenshots.length, 0);
 });

@@ -14,6 +14,10 @@ import type { BrowserLauncher, Browser, BrowserContext } from './browser-runner.
 import { BrowserEvidenceCollector } from './browser-evidence.js';
 import type { BrowserEvidenceBundle } from './browser-evidence.js';
 import type { VerificationVerdict } from '../shared/contracts.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
+import type { SecurityRuntime } from '../../../../security-runtime/src/runtime.js';
+import type { RuntimeTargetContext } from '../../../../security-runtime/src/contracts.js';
+import type { SecurityMode } from '../../../../evidence-plane/src/contracts.js';
 
 // ---------------------------------------------------------------------------
 // Browser probe family identifiers
@@ -360,7 +364,7 @@ export async function executeCsrfProbe(
       );
     });
 
-    const targetUrl = new URL(request.targetPath, request.targetBaseUrl).toString();
+    const targetUrl = resolveRequestUrl(request.targetPath, request.targetBaseUrl, { label: 'csrf target path' });
     const method = request.method ?? 'POST';
 
     // Build a data-URI page that simulates a cross-origin form submission via fetch.
@@ -496,7 +500,7 @@ export async function executeSameSiteCookieProbe(
     });
 
     // Navigate to target to establish session
-    const bootstrapUrl = new URL(request.targetPath, request.targetBaseUrl).toString();
+    const bootstrapUrl = resolveRequestUrl(request.targetPath, request.targetBaseUrl, { label: 'cookie bootstrap path' });
     await page.goto(bootstrapUrl, { timeout: 15_000, waitUntil: 'load' });
     collector.addUrlTransition('', bootstrapUrl);
 
@@ -659,7 +663,7 @@ export async function executeWebSocketOriginProbe(
 
     const wsPath = request.websocketPath ?? request.targetPath;
     const wsBaseUrl = request.targetBaseUrl.replace(/^http/, 'ws');
-    const wsUrl = new URL(wsPath, wsBaseUrl).toString();
+    const wsUrl = resolveRequestUrl(wsPath, wsBaseUrl, { label: 'websocket path' });
     const crossOrigin = request.crossOriginUrl ?? 'https://evil.example.com';
 
     // Build a page that attempts a WebSocket connection with a spoofed origin
@@ -795,7 +799,7 @@ export async function executeStoredXssProbe(
     });
 
     // Navigate to the page where the stored payload should appear
-    const targetUrl = new URL(request.targetPath, request.targetBaseUrl).toString();
+    const targetUrl = resolveRequestUrl(request.targetPath, request.targetBaseUrl, { label: 'xss target path' });
     await page.goto(targetUrl, { timeout: 15_000, waitUntil: 'load' });
     collector.addUrlTransition('', targetUrl);
 
@@ -877,11 +881,40 @@ export async function executeStoredXssProbe(
  * Execute a browser probe request by dispatching to the appropriate
  * family handler. Returns the probe result with verdict and evidence.
  */
+export interface BrowserProbeExecutionOptions {
+  /** Policy runtime; when supplied, no browser probe runs without a decision. */
+  runtime?: SecurityRuntime;
+  /** Target context handed to the policy runtime. */
+  runtimeTargetContext?: RuntimeTargetContext;
+  /** Security mode reported to the policy runtime (default `declared`). */
+  mode?: SecurityMode;
+}
+
 export async function executeBrowserProbe(
   request: BrowserProbeRequest,
   launcher: BrowserLauncher,
   evidenceDir: string,
+  options: BrowserProbeExecutionOptions = {},
 ): Promise<BrowserProbeResult> {
+  // Policy gate at the dispatcher: every browser family — including probes
+  // whose target path came from model output — passes through here.
+  if (options.runtime) {
+    if (!options.runtimeTargetContext) {
+      return blockedBrowserProbe(
+        request,
+        'probe refused: a policy runtime was supplied without a target context (environment tier unknown)',
+      );
+    }
+    const decision = options.runtime.authorizeProbe(options.mode ?? 'declared', options.runtimeTargetContext, {
+      kind: 'http_request',
+      timeoutMs: 20_000,
+      method: 'GET',
+    });
+    if (!decision.allowed) {
+      return blockedBrowserProbe(request, `policy blocked: ${decision.reason ?? 'blocked'}`);
+    }
+  }
+
   switch (request.family) {
     case 'csrf_origin':
       return executeCsrfProbe(request, launcher, evidenceDir);
@@ -892,6 +925,34 @@ export async function executeBrowserProbe(
     case 'stored_xss':
       return executeStoredXssProbe(request, launcher, evidenceDir);
   }
+}
+
+
+/**
+ * Result for a browser probe that the policy runtime refused. No browser is
+ * launched and no evidence is collected, so the bundle is empty by design.
+ */
+function blockedBrowserProbe(request: BrowserProbeRequest, reasoning: string): BrowserProbeResult {
+  return {
+    findingId: request.findingId,
+    hypothesis: request.hypothesis,
+    family: request.family,
+    variant: request.variant,
+    verdict: 'not_authorized',
+    reasoning,
+    evidence: {
+      bundleId: `browser-blocked-${Date.now().toString(36)}`,
+      findingId: request.findingId,
+      screenshots: [],
+      consoleLogs: [],
+      urlTransitions: [],
+      storageState: null,
+      finalizedAt: new Date().toISOString(),
+    },
+    domAssertions: [],
+    consoleObservations: [],
+    durationMs: 0,
+  };
 }
 
 // ---------------------------------------------------------------------------

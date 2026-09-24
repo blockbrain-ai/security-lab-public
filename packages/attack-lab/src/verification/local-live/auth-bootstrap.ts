@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { InvestigationTarget } from '../../autonomous/target-profile.js';
 import type { IdentitySpec } from './contracts.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 // ---------------------------------------------------------------------------
 // Production-secret detection markers
@@ -158,7 +159,7 @@ export async function prepareLocalAuthBootstrap(
       if (teardownConfig && target.baseUrl) {
         const teardownPath = stringValue(teardownConfig['path']) ?? '/api/v1/test/teardown';
         try {
-          await fetch(new URL(teardownPath, target.baseUrl).toString(), {
+          await fetch(resolveRequestUrl(teardownPath, target.baseUrl, { label: 'auth teardown path' }), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ identities: issuedIdentities }),

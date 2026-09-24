@@ -21,6 +21,7 @@ import { redactBody, redactHeaders } from '../shared/redaction.js';
 import { deriveHostedVerdict } from './hosted-verdict.js';
 import type { SecurityRuntime } from '../../../../security-runtime/src/runtime.js';
 import type { RuntimeTargetContext } from '../../../../security-runtime/src/contracts.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 // ---------------------------------------------------------------------------
 // Hosted probe options
@@ -136,7 +137,7 @@ export async function executeHostedProbe(
     );
   }
 
-  const url = new URL(probe.http.path, options.target.baseUrl).toString();
+  const url = resolveRequestUrl(probe.http.path, options.target.baseUrl, { label: 'hosted probe path' });
   const headers: Record<string, string> = {
     ...credentials.headers,
     ...probe.http.headers,

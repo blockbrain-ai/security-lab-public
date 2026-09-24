@@ -22,6 +22,7 @@ import type {
 import type { LiveReplayOptions } from './live-replay.js';
 import { executeLiveProbe } from './live-replay.js';
 import type { VerificationVerdict } from '../shared/contracts.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 // ---------------------------------------------------------------------------
 // Output extraction
@@ -153,7 +154,7 @@ async function executeRollback(
 
   for (const cmd of commands) {
     try {
-      const url = new URL(cmd.path, options.baseUrl).toString();
+      const url = resolveRequestUrl(cmd.path, options.baseUrl, { label: 'sequence step path' });
       const response = await fetchFn(url, {
         method: cmd.method,
         headers: cmd.headers,

@@ -4,6 +4,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { InvestigationTarget } from '../../autonomous/target-profile.js';
 import { prepareLocalAuthBootstrap, type LocalAuthBootstrapResult } from './auth-bootstrap.js';
+import { resolveRequestUrl } from '../shared/url-policy.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -448,7 +449,7 @@ async function waitForReadiness(target: InvestigationTarget, fallbackTimeoutMs: 
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(new URL(path, target.baseUrl), {
+      const response = await fetch(resolveRequestUrl(path, target.baseUrl, { label: 'readiness check path' }), {
         method,
         signal: AbortSignal.timeout(Math.min(intervalMs, 5_000)),
       });

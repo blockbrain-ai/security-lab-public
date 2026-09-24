@@ -23,7 +23,8 @@ export type CoverageGapReasonCode =
   | 'mythos_probe_budget_exhausted'
   | 'mythos_time_budget_exhausted'
   | 'mythos_rate_budget_exhausted'
-  | 'parameter_unresolved';
+  | 'parameter_unresolved'
+  | 'probe_blocked_by_policy';
 
 /**
  * All valid reason codes as a runtime array for validation.
@@ -41,6 +42,7 @@ export const COVERAGE_GAP_REASON_CODES: readonly CoverageGapReasonCode[] = [
   'mythos_time_budget_exhausted',
   'mythos_rate_budget_exhausted',
   'parameter_unresolved',
+  'probe_blocked_by_policy',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -157,5 +159,6 @@ export const COVERAGE_GAP_REMEDIATION_HINTS: Record<CoverageGapReasonCode, strin
   mythos_probe_budget_exhausted: 'The Mythos creativity sub-lane hit its per-invocation probe budget. Increase liveProbing.mythos.probeBudget or reduce the sub-lane breadth.',
   mythos_time_budget_exhausted: 'The Mythos creativity sub-lane exceeded its time budget. Increase liveProbing.mythos.timeBudgetMs or narrow the prompt.',
   mythos_rate_budget_exhausted: 'The Mythos sub-lane was skipped because the rate-limiter budget for the local-live lane was already exhausted.',
+  probe_blocked_by_policy: 'The policy runtime refused this probe (environment tier, kill switch, timeout cap or a destructive command fragment). Inspect the reason and the target environment tier; the probe was not sent.',
   parameter_unresolved: 'A probe required entity parameters (e.g. :companyId, :userId) that could not be resolved from the entity inventory. Seed the values in the target profile or ensure bootstrap/runtime discovery populates them.',
 };
