@@ -640,6 +640,18 @@ async function main(): Promise<void> {
         : null;
     })
     .filter((member): member is PanelMember => member !== null);
+
+  // Panel shrinkage must be visible: a configured panel whose members could
+  // not be built (missing key, unavailable provider) silently became a smaller
+  // panel, and a smaller panel is easier to reach agreement in.
+  const configuredPanelSize = profile.judgePanel?.length ?? 0;
+  if (configuredPanelSize > 0 && judgePanelMembers && judgePanelMembers.length < configuredPanelSize) {
+    console.warn(
+      `[security-lab] judge panel built ${judgePanelMembers.length} of ${configuredPanelSize} configured members; ` +
+        'missing members are usually an unavailable provider or credential.',
+    );
+  }
+
   const synthesizerAdapter = createOptionalAdapter(
     'synthesizer',
     profile.synthesizer ? withTransportContext(withRequestTimeout(profile.synthesizer, options.requestTimeoutMs), workerRoot, additionalDirectories) : undefined,

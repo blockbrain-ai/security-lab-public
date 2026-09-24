@@ -13,7 +13,7 @@ import type {
 import type { ApprovedPackage, DependencyBaseline } from '../../supply-chain/contracts.js';
 import { ArtifactFetcher } from './artifact-fetcher.js';
 import { ProvenanceVerifier } from './provenance-verifier.js';
-import { InstallSandbox } from './install-sandbox.js';
+import { InstallSandbox, type InstallSandboxIsolation } from './install-sandbox.js';
 import { DiffAnalyzer } from './diff-analyzer.js';
 import { PolicyReview } from './policy-review.js';
 
@@ -25,8 +25,18 @@ export interface ConfirmationRunnerOptions {
   quarantineDir: string;
   baseline?: DependencyBaseline;
   policyReview?: PolicyReview;
-  /** Run the install sandbox in addition to static inspection. */
+  /**
+   * Run the install sandbox in addition to static inspection. Off by default:
+   * this step executes the package's install scripts, so enabling it is an
+   * explicit decision.
+   */
   enableInstallSandbox?: boolean;
+  /**
+   * Isolation backend for the install sandbox. Required for the step to run —
+   * without it the sandbox records the step as skipped instead of executing a
+   * target's install scripts on this host.
+   */
+  installSandboxIsolation?: InstallSandboxIsolation;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +105,7 @@ export class SupplyChainConfirmationRunner {
     if (this.shouldRunSandbox(inspection)) {
       installSandbox = await this.sandbox.run(fetched, {
         packageManager: changeSet.packageManager === 'unknown' ? 'npm' : changeSet.packageManager,
+        isolation: this.options.installSandboxIsolation,
       });
     }
 
@@ -126,9 +137,17 @@ export class SupplyChainConfirmationRunner {
   }
 
   private shouldRunSandbox(inspection: { hasInstallScript: boolean; hasNativeBinaries: boolean }): boolean {
-    if (this.options.enableInstallSandbox === false) return false;
-    if (this.options.enableInstallSandbox === true) return true;
-    return inspection.hasInstallScript || inspection.hasNativeBinaries;
+    // Fail closed: executing a package's install scripts is opt-in, never the
+    // default, however suspicious the package looks.
+    if (this.options.enableInstallSandbox !== true) {
+      return false;
+    }
+    if (!this.options.installSandboxIsolation) {
+      return false;
+    }
+    // Enabled and isolated: the operator has opted in to observing install-time
+    // behaviour, so the step runs regardless of what static inspection found.
+    return true;
   }
 
   private errorExperiment(

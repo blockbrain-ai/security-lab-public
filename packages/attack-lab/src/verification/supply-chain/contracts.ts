@@ -72,6 +72,15 @@ export interface ArtifactInspection {
 export interface InstallSandboxResult {
   packageName: string;
   version: string;
+  /**
+   * False when the install was not executed because no isolation backend was
+   * configured. A skipped step is recorded rather than silently omitted.
+   */
+  executed: boolean;
+  /** How the install was isolated (or `none` when it did not run). */
+  isolation: 'docker' | 'none';
+  /** Why the install did not run. */
+  skippedReason?: string;
   exitCode: number;
   durationMs: number;
   stdoutTail: string;

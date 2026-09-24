@@ -55,9 +55,13 @@ test('SupplyChainConfirmationRunner marks removed packages as needs_review', asy
 });
 
 test('SupplyChainConfirmationRunner orchestrates fetch, inspect, diff, sandbox, and policy review', async () => {
+  // Install execution is opt-in and needs an isolation backend, so the test
+  // opts in explicitly (the sandbox itself is stubbed below).
   const runner = new SupplyChainConfirmationRunner({
     quarantineDir: '/tmp/security-lab-quarantine',
     baseline,
+    enableInstallSandbox: true,
+    installSandboxIsolation: { kind: 'docker' },
   });
 
   const inspection: ArtifactInspection = {
@@ -79,6 +83,8 @@ test('SupplyChainConfirmationRunner orchestrates fetch, inspect, diff, sandbox, 
     notes: [],
   };
   const installSandbox: InstallSandboxResult = {
+    executed: true,
+    isolation: 'docker',
     packageName: 'fixture-package',
     version: '2.0.0',
     exitCode: 0,
@@ -160,4 +166,25 @@ test('SupplyChainConfirmationRunner converts orchestration errors into needs_rev
 
   assert.equal(experiment?.verdict, 'needs_review');
   assert.match(experiment?.reasoning ?? '', /registry offline/i);
+});
+
+test('install execution is opt-in and requires an isolation backend', () => {
+  const base = { quarantineDir: '/tmp/quarantine' };
+  const inspection = { hasInstallScript: true, hasNativeBinaries: true };
+
+  // Default: a package with install scripts is *not* executed.
+  const byDefault = new SupplyChainConfirmationRunner(base as never);
+  assert.equal((byDefault as never as { shouldRunSandbox: (i: typeof inspection) => boolean }).shouldRunSandbox(inspection), false);
+
+  // Enabled but unisolated: still not executed.
+  const enabledOnly = new SupplyChainConfirmationRunner({ ...base, enableInstallSandbox: true } as never);
+  assert.equal((enabledOnly as never as { shouldRunSandbox: (i: typeof inspection) => boolean }).shouldRunSandbox(inspection), false);
+
+  // Enabled with an isolation backend: runs.
+  const isolated = new SupplyChainConfirmationRunner({
+    ...base,
+    enableInstallSandbox: true,
+    installSandboxIsolation: { kind: 'docker' },
+  } as never);
+  assert.equal((isolated as never as { shouldRunSandbox: (i: typeof inspection) => boolean }).shouldRunSandbox(inspection), true);
 });

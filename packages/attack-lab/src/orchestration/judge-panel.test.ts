@@ -285,3 +285,103 @@ test('Section 7.1 — runJudgePanel omits source excerpts when no workspaceRoot 
   const prompt = panel.memberResults[0]!.invocation.prompt;
   assert.ok(!prompt.includes('Cited Source Code'));
 });
+
+// ---------------------------------------------------------------------------
+// Quorum rules
+//
+// A panel that cannot agree must not produce a consensus verdict: the previous
+// `Math.ceil(n / 2)` rule let a 1–1 split resolve to whichever verdict was
+// counted first, and let a single judge count as a panel. Both turned
+// disagreement into a confident finding.
+// ---------------------------------------------------------------------------
+
+function judgeContent(verdict: string): string {
+  return JSON.stringify({
+    verdict,
+    finding:
+      verdict === 'confirmed_finding'
+        ? {
+            description: 'Confirmed chain.',
+            severity: 'high',
+            reproductionSteps: ['step 1'],
+            remediationSuggestion: 'Fix it',
+            involvedDormantReactivation: false,
+          }
+        : undefined,
+    promoteSignals: [],
+    dismissSignals: [],
+    reactivateSignals: [],
+    newCorrelations: [],
+    partialProgress: false,
+    reasoning: `judge says ${verdict}`,
+  });
+}
+
+function quorumMemory() {
+  const memory = createEmptyMemory('campaign-quorum');
+  memory.signals.push({
+    id: 'ws-1',
+    discoveredAt: new Date().toISOString(),
+    iteration: 0,
+    description: 'Missing auth guard on sensitive route',
+    surface: 'code',
+    confidence: 0.8,
+    novelty: 0.7,
+    relatedAssets: ['src/routes/admin.ts'],
+    potentialCapabilities: ['auth_bypass'],
+    suggestedFollowUps: [],
+    status: 'active',
+    correlatedWith: [],
+    unresolvedCorrelations: [],
+  });
+  memory.hypotheses.push({
+    id: 'ph-1',
+    synthesizedAt: new Date().toISOString(),
+    iteration: 0,
+    description: 'Missing auth guard could expose admin data',
+    severity: 'high',
+    signalIds: ['ws-1'],
+    prerequisites: [],
+    status: 'testing',
+    attempts: [],
+  });
+  return memory;
+}
+
+function members(verdicts: Array<'confirmed_finding' | 'continue' | 'dead_end'>) {
+  const providers = ['openai', 'anthropic', 'gemini'] as const;
+  return verdicts.map((verdict, index) => ({
+    label: `judge-${index + 1}`,
+    adapter: new StaticAdapter(providers[index % providers.length]!, `model-${index + 1}`, judgeContent(verdict)),
+  }));
+}
+
+test('a two-judge panel split 1-1 produces no consensus', async () => {
+  const memory = quorumMemory();
+  const panel = await runJudgePanel(members(['confirmed_finding', 'dead_end']), memory, memory.hypotheses[0]!, 'no observations');
+  assert.equal(panel.consensusVerdict, null);
+  assert.equal(panel.disagreement.unanimous, false);
+  assert.equal(panel.disagreement.distinctVerdicts, 2);
+});
+
+test('a single judge cannot claim a consensus or unanimity', async () => {
+  const memory = quorumMemory();
+  const panel = await runJudgePanel(members(['confirmed_finding']), memory, memory.hypotheses[0]!, 'no observations');
+  assert.equal(panel.consensusVerdict, null, 'one judge is not a quorum');
+  assert.equal(panel.disagreement.unanimous, false);
+});
+
+test('two agreeing judges form a consensus', async () => {
+  const memory = quorumMemory();
+  const panel = await runJudgePanel(members(['confirmed_finding', 'confirmed_finding']), memory, memory.hypotheses[0]!, 'no observations');
+  assert.equal(panel.consensusVerdict, 'confirmed_finding');
+  assert.equal(panel.disagreement.unanimous, true);
+});
+
+test('a three-judge panel resolves 2-1 but does not report unanimity', async () => {
+  const memory = quorumMemory();
+  const panel = await runJudgePanel(members(['confirmed_finding', 'confirmed_finding', 'dead_end']), memory, memory.hypotheses[0]!, 'no observations');
+  assert.equal(panel.consensusVerdict, 'confirmed_finding');
+  assert.equal(panel.disagreement.unanimous, false);
+  assert.equal(panel.disagreement.dissenters.length, 1);
+});

@@ -57,22 +57,86 @@ test('InstallSandbox builds isolated env and snapshots path changes', async () =
   }
 });
 
-test('InstallSandbox installs a local tarball and reports bounded execution details', async () => {
+test('InstallSandbox does not execute anything without an isolation backend', async () => {
   const root = await mkdtemp(join(tmpdir(), 'security-lab-install-sandbox-'));
-
   try {
     const fetched = await createFetchedArtifact(root);
-    const sandbox = new InstallSandbox();
-    const result = await sandbox.run(fetched, {
+    let spawnCalled = false;
+    const result = await new InstallSandbox().run(fetched, {
       packageManager: 'npm',
-      timeoutMs: 30_000,
-      allowNetwork: false,
+      spawnFn: async () => {
+        spawnCalled = true;
+        return { exitCode: 0, stdout: '', stderr: '', killed: false };
+      },
     });
 
-    assert.equal(result.packageName, 'sandbox-fixture');
-    assert.equal(result.version, '1.0.0');
-    assert.equal(typeof result.exitCode, 'number');
-    assert.ok(result.durationMs >= 0);
+    assert.equal(result.executed, false);
+    assert.equal(result.isolation, 'none');
+    assert.match(result.skippedReason ?? '', /isolation backend/);
+    assert.equal(spawnCalled, false, 'nothing may be spawned without isolation');
+    assert.equal(result.exitCode, -1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('InstallSandbox runs the install inside a hardened container', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'security-lab-install-sandbox-'));
+  try {
+    const fetched = await createFetchedArtifact(root);
+    let captured: { command: string; args: string[]; cwd: string } | undefined;
+
+    const result = await new InstallSandbox().run(fetched, {
+      packageManager: 'npm',
+      isolation: { kind: 'docker' },
+      spawnFn: async (command, args, options) => {
+        captured = { command, args, cwd: options.cwd };
+        return { exitCode: 0, stdout: 'ok', stderr: '', killed: false };
+      },
+    });
+
+    assert.equal(result.executed, true);
+    assert.equal(result.isolation, 'docker');
+    assert.equal(captured?.command, 'docker');
+
+    const args = captured?.args ?? [];
+    assert.deepEqual(args.slice(0, 2), ['run', '--rm']);
+    assert.ok(args.includes('--network=none'), 'no network by default');
+    assert.ok(args.includes('--read-only'));
+    assert.ok(args.includes('--cap-drop=ALL'));
+    assert.ok(args.includes('--security-opt=no-new-privileges'));
+    assert.ok(args.includes('--user'));
+    assert.equal(args.filter((arg) => arg === '-v').length, 1, 'exactly one host mount');
+    assert.ok(args.some((arg) => arg.endsWith(':/work:rw')), 'only the sandbox is mounted');
+    assert.ok(args.includes('/work'));
+    assert.ok(args.includes('npm'));
+    assert.ok(args.includes('--ignore-scripts=false'), 'lifecycle scripts run inside the container');
+
+    // The container must not receive the operator's environment.
+    assert.equal(args.includes('ANTHROPIC_API_KEY'), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('InstallSandbox only opens the network when explicitly allowed', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'security-lab-install-sandbox-'));
+  try {
+    const fetched = await createFetchedArtifact(root);
+    let args: string[] = [];
+    await new InstallSandbox().run(fetched, {
+      packageManager: 'npm',
+      allowNetwork: true,
+      isolation: { kind: 'docker', image: 'node:22-slim', user: '1000:1000' },
+      spawnFn: async (_command, capturedArgs) => {
+        args = capturedArgs;
+        return { exitCode: 0, stdout: '', stderr: '', killed: false };
+      },
+    });
+
+    assert.ok(args.includes('--network=bridge'));
+    assert.ok(args.includes('node:22-slim'));
+    assert.ok(args.includes('1000:1000'));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

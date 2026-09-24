@@ -143,7 +143,8 @@ function computeDisagreement(results: PanelMemberResult[]): DisagreementMetrics 
   }
 
   const distinctVerdicts = Object.keys(verdictSplit).length;
-  const unanimous = distinctVerdicts === 1;
+  // A single judge is not a unanimous panel.
+  const unanimous = distinctVerdicts === 1 && results.length >= MIN_PANEL_SIZE;
 
   // Find majority verdict
   const majorityVerdict = Object.entries(verdictSplit)
@@ -177,23 +178,33 @@ function computeDisagreement(results: PanelMemberResult[]): DisagreementMetrics 
   };
 }
 
+/** A panel needs at least this many members before it can claim consensus. */
+export const MIN_PANEL_SIZE = 2;
+
+/**
+ * Consensus requires a *strict* majority of at least two judges.
+ *
+ * `Math.ceil(n / 2)` (the previous rule) let a two-member panel resolve a 1–1
+ * split in favour of whichever verdict happened to be counted first, and let a
+ * single judge count as a panel. Both turned disagreement into a confident
+ * `finding_confirmed`.
+ */
 function findConsensus(results: PanelMemberResult[]): JudgeOutput['verdict'] | null {
-  if (results.length === 0) return null;
+  if (results.length < MIN_PANEL_SIZE) return null;
 
   const verdictCounts = new Map<string, number>();
   for (const r of results) {
     verdictCounts.set(r.output.verdict, (verdictCounts.get(r.output.verdict) ?? 0) + 1);
   }
 
-  // Majority wins
-  const majority = Math.ceil(results.length / 2);
+  const strictMajority = Math.floor(results.length / 2) + 1;
   for (const [verdict, count] of verdictCounts) {
-    if (count >= majority) {
+    if (count >= strictMajority) {
       return verdict as JudgeOutput['verdict'];
     }
   }
 
-  return null; // No consensus
+  return null; // Tied or fragmented: no consensus
 }
 
 // ---------------------------------------------------------------------------
